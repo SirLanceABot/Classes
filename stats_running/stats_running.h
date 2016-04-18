@@ -18,11 +18,11 @@ In addition to only requiring one pass through the data, the algorithm is numeri
 To use the code, create a RunningStats object and use the Push method to insert data values. After
 accruing your data, you can obtain sample statistics by calling one of these methods:
 
-•Mean
-•Variance
-•StandardDeviation
-•Skewness
-•Kurtosis
+â€¢Mean
+â€¢Variance
+â€¢StandardDeviation
+â€¢Skewness
+â€¢Kurtosis
 You can also combine two RunningStats objects by using the + and += operators. For example, you might
 accrue data on several different threads in parallel then add their RunningStats objects together to
 create a single object with the state that it would have had if all the data had been accumulated by it
@@ -31,7 +31,7 @@ References:
 
 1.Wikipedia
 2.Timothy B. Terriberry. Computing Higher-Order Moments Online.
-3.Philippe Pébay. SANDIA REPORT SAND2008-6212 (2008). Formulas for Robust, One-Pass Parallel Computation
+3.Philippe PÃ©bay. SANDIA REPORT SAND2008-6212 (2008). Formulas for Robust, One-Pass Parallel Computation
  of Co- variances and Arbitrary-Order Statistical Moments.
 
 */
