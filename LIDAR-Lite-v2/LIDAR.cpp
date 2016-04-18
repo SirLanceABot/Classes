@@ -12,7 +12,7 @@
  * This program starts a "background" thread always polling the LIDAR-Lite for the current distance.
  * The user may request the current distance at any time.
  */
-#include "Lidar.h"
+#include "LIDAR.h"
 
 // function to start the background thread
 // takes the calling objects "this" as the parameter so that object can be used for the rest of the references
