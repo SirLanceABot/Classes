@@ -17,6 +17,8 @@ PID_ATune::PID_ATune(double* Input, double* Output, double* Setpoint, unsigned l
 	SetLookbackTime(10);
 	peakCount = 0;
 	SetControllerDirection(ControllerDirection);
+	Ku = 0;
+	Pu = 0;
 }
 
 void PID_ATune::Cancel()
@@ -157,7 +159,7 @@ double PID_ATune::GetPeak_2()
 
 double PID_ATune::GetKp()
 {
-	return controlType==PID_CONTROL ? 0.6 * Ku : 0.4 * Ku;
+	return controlType==PID_CONTROL ? 0.6 * Ku : 0.4 * Ku;  // Kp = Ku
 }
 
 double PID_ATune::GetKi()
@@ -240,6 +242,7 @@ int PID_ATune::GetLookbackTime()
 {
 	return nLookBack * sampleTime;
 }
+
 /* SetControllerDirection(...)*************************************************
  * The PID will either be connected to a DIRECT acting process (+Output leads
  * to +Input) or a REVERSE acting process(+Output leads to -Input.)  we need to
