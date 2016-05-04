@@ -1,6 +1,6 @@
 #include "WPILib.h"
 #include "Constants.h"
-#include "AutoTune_Example.h"
+#include "AutoTune-tank-turn.h"
 #include <math.h>
 
 class Robot: public SampleRobot
@@ -12,6 +12,13 @@ class Robot: public SampleRobot
 	Timer * mTime;
 	PowerDistributionPanel *mPDP;
 public:
+
+//  ____            _               _   
+// |  _ \    ___   | |__     ___   | |_ 
+// | |_) |  / _ \  | '_ \   / _ \  | __|
+// |  _ <  | (_) | | |_) | | (_) | | |_ 
+// |_| \_\  \___/  |_.__/   \___/   \__|
+
 	Robot()
 	{
 		mFrontLeftMotor = new CANTalon(CAN_PORT::FRONT_LEFT);
@@ -22,9 +29,27 @@ public:
 		mPDP = new  PowerDistributionPanel();
 	}
 
+//  /\/|  ____            _               _   
+// |/\/  |  _ \    ___   | |__     ___   | |_ 
+//       | |_) |  / _ \  | '_ \   / _ \  | __|
+//       |  _ <  | (_) | | |_) | | (_) | | |_ 
+//       |_| \_\  \___/  |_.__/   \___/   \__|
+
 	~Robot()
 	{
+		delete mPDP;
+		delete mTime;
+		delete mRearRightMotor;
+		delete mFrontRightMotor;
+		delete mRearLeftMotor;
+		delete mFrontLeftMotor;
 	}
+
+//  ____            _               _     ___           _   _   
+// |  _ \    ___   | |__     ___   | |_  |_ _|  _ __   (_) | |_ 
+// | |_) |  / _ \  | '_ \   / _ \  | __|  | |  | '_ \  | | | __|
+// |  _ <  | (_) | | |_) | | (_) | | |_   | |  | | | | | | | |_ 
+// |_| \_\  \___/  |_.__/   \___/   \__| |___| |_| |_| |_|  \__|                                                          
 
 	void RobotInit()
 	{
@@ -39,6 +64,11 @@ public:
 		mRearRightMotor->ClearError();
 		mRearRightMotor->ClearStickyFaults();
 		Wait(.5);
+		
+		mFrontLeftMotor->ConfigForwardSoftLimitEnable(false);
+		mFrontRightMotor->ConfigForwardSoftLimitEnable(false);
+		mFrontLeftMotor->ConfigReverseSoftLimitEnable(false);
+		mFrontRightMotor->ConfigReverseSoftLimitEnable(false);
 
 // CAN Talon control frame rate default = 10 ms; set by optional argument to the object constructor
 // but changing it slightly to 8 was a disaster - garbage motor control
@@ -54,84 +84,107 @@ public:
 //		mFrontRightMotor->SetStatusFrameRateMs(CANTalon::StatusFrameRate::StatusFrameRateAnalogTempVbat, 100);
 		Wait(.2);
 
-		std::cout << "Left ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
-		std::cout << "Right ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
+		mFrontLeftMotor->SetVoltageRampRate(300.);  // good for desktop board with small plugin power supply
+		mFrontRightMotor->SetVoltageRampRate(300.); // otherwise low-power faults and D-Link crashes; still crashes from high power to 0 though
 
-		std::cout << "Left IsControlEnabled " << mFrontLeftMotor->IsControlEnabled() << std::endl;
-		std::cout << "Right IsControlEnabled " << mFrontRightMotor->IsControlEnabled() << std::endl;
-
-// fixme: Limit Voltage change?
-		mFrontLeftMotor->SetVoltageRampRate(50.);
-		mFrontRightMotor->SetVoltageRampRate(50.);
+		mFrontLeftMotor->SetCloseLoopRampRate(300.);
+		mFrontRightMotor->SetCloseLoopRampRate(300.);
 
 		mFrontLeftMotor->SetFeedbackDevice(CANTalon::QuadEncoder);
 		mFrontRightMotor->SetFeedbackDevice(CANTalon::QuadEncoder);
-
-		mFrontLeftMotor->SetEncPosition(0);
-		mFrontRightMotor->SetEncPosition(0);
-
-		mFrontLeftMotor->SetSensorDirection(false); // true reverses GetPosition & GetSpeed but not GetEncPosition nor GetEncVel
-		mFrontRightMotor->SetSensorDirection(true); // invert to match left; true reverses GetPosition & GetSpeed but not GetEncPosition nor GetEncVel
-
+		
 		Wait(.2);
 
-#ifdef TABLE_TOP_PG45775126000_26_9KET
-// 7 encoder pulses/motor rev x 26.9:1 motor revs/gear box output shaft rev = 188; times 4x quadrature encoder = 753.2 edges/motor rev/output shaft rev
-		mFrontLeftMotor->ConfigEncoderCodesPerRev((uint16_t)(7L*26.9L + 0.5L));
-		mFrontRightMotor->ConfigEncoderCodesPerRev(188);
-#endif
+		mFrontLeftMotor->ConfigEncoderCodesPerRev(TALON_DRIVE::ENCODER_CODES_PER_REV);
+		mFrontRightMotor->ConfigEncoderCodesPerRev(TALON_DRIVE::ENCODER_CODES_PER_REV);
+	
+		Wait(.2);
+	}
 
-#ifdef ROBOT
-// no ConfigEncoderCodesPerRev()
-// GetPosition() == GetEncPosition, GetSpeed == GetEncVel(); but updated faster than Enc versions
-#endif
+//      _              _                                                             
+//     / \     _   _  | |_    ___    _ __     ___    _ __ ___     ___    _   _   ___ 
+//    / _ \   | | | | | __|  / _ \  | '_ \   / _ \  | '_ ` _ \   / _ \  | | | | / __|
+//   / ___ \  | |_| | | |_  | (_) | | | | | | (_) | | | | | | | | (_) | | |_| | \__ \  .
+//  /_/   \_\  \__,_|  \__|  \___/  |_| |_|  \___/  |_| |_| |_|  \___/   \__,_| |___/                                                                               
 
-// fixme: PID Tuning parameters go here
-		mFrontLeftMotor->SetPID(4., 0.02, 150.);
+	void Autonomous()
+	{
+	}
+
+//    ___                                  _                     ____                   _                    _ 
+//   / _ \   _ __     ___   _ __    __ _  | |_    ___    _ __   / ___|   ___    _ __   | |_   _ __    ___   | |
+//  | | | | | '_ \   / _ \ | '__|  / _` | | __|  / _ \  | '__| | |      / _ \  | '_ \  | __| | '__|  / _ \  | |
+//  | |_| | | |_) | |  __/ | |    | (_| | | |_  | (_) | | |    | |___  | (_) | | | | | | |_  | |    | (_) | | |
+//   \___/  | .__/   \___| |_|     \__,_|  \__|  \___/  |_|     \____|  \___/  |_| |_|  \__| |_|     \___/  |_|
+//          |_|                                                                                                
+
+	void OperatorControl()
+	{
+		std::cout << "\nEntered OperatorControl to drive straight using PID control mode & followers\n";
+		
+		int positionEncLeft, positionEncRight, velocityEncLeft, velocityEncRight, errorLeft, errorRight;
+		double positionLeft, positionRight, velocityLeft, velocityRight;
+
+		std::cout << "\n\nResetting Talons\n\n";
+		mFrontLeftMotor->Reset();
+		mFrontRightMotor->Reset();
+		Wait(.5);
+		mFrontLeftMotor->Enable();
+		mFrontRightMotor->Enable();
+		Wait(.5);
+
+		// right motor is mirror of left so invert its actions since it runs backwards of the left motor
+		mFrontRightMotor->SetInverted(false);  // invert power so + power goes forward for both sides; not used for PID control of mirrored motors; only for %VBus
+		mFrontRightMotor->SetSensorDirection(true); // invert encoder to match left; true reverses GetPosition & GetSpeed but not GetEncPosition nor GetEncVel
+		mFrontRightMotor->SetClosedLoopOutputDirection(true); // reverses the power to the motor in PID controller mode - compensate for the other reversals done above
+		Wait(.2);
+
+		// PID Tuning parameters go here
+		mFrontLeftMotor->SetPID(TALON_DRIVE::TankTurnKp, TALON_DRIVE::TankTurnKi, TALON_DRIVE::TankTurnKd);
+		mFrontRightMotor->SetPID(TALON_DRIVE::TankTurnKp, TALON_DRIVE::TankTurnKi, TALON_DRIVE::TankTurnKd);
+
 		mFrontLeftMotor->SetControlMode(mFrontLeftMotor->ControlMode::kSpeed);
 		mFrontLeftMotor->Set(0.);
-		Wait(.2);
-
-		mFrontRightMotor->SetPID(4., 0.02, 150.);
+		
 		mFrontRightMotor->SetControlMode(mFrontRightMotor->ControlMode::kSpeed);
 		mFrontRightMotor->Set(0.);
 		Wait(.2);
-
+		
 		mRearLeftMotor->SetControlMode(CANSpeedController::kFollower);
 		mRearLeftMotor->Set(CAN_PORT::FRONT_LEFT);
 
 		mRearRightMotor->SetControlMode(CANSpeedController::kFollower);
 		mRearRightMotor->Set(CAN_PORT::FRONT_RIGHT);
 		Wait(.2);
-	}
+		
+		std::cout << "\n\nPID and follower modes set\n\n";
+	
+		std::cout << "Front Left ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
+		std::cout << "Front Right ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
+		std::cout << "Rear Left ControlMode " << mRearLeftMotor->GetControlMode() << std::endl;
+		std::cout << "Rear Right ControlMode " << mRearLeftMotor->GetControlMode() << std::endl;
 
-	void OperatorControl()
-	{
-		int positionEncLeft, positionEncRight, velocityEncLeft, velocityEncRight, errorLeft, errorRight;
-		double positionLeft, positionRight, velocityLeft, velocityRight;
+		std::cout << "Front Left IsControlEnabled " << mFrontLeftMotor->IsControlEnabled() << std::endl;
+		std::cout << "Front Right IsControlEnabled " << mFrontRightMotor->IsControlEnabled() << std::endl;
+		std::cout << "Rear Left IsControlEnabled " << mRearLeftMotor->IsControlEnabled() << std::endl;
+		std::cout << "Rear Right IsControlEnabled " << mRearRightMotor->IsControlEnabled() << std::endl;
 
 		mFrontLeftMotor->SetEncPosition(0);
 		mFrontRightMotor->SetEncPosition(0);
-
+		
 		mTime->Reset();
 		mTime->Start();
 
-		mFrontLeftMotor->SetCloseLoopRampRate(50.); // fixme: Limit Voltage change?
-		mFrontRightMotor->SetCloseLoopRampRate(50.);
-
 		while (IsOperatorControl() && IsEnabled())
 		{
-			mFrontLeftMotor->Set(54.0);
-			mFrontRightMotor->Set(54.0);
+			mFrontLeftMotor->Set(270.0);
+			mFrontRightMotor->Set(270.0);
 
 //			float motor = 25.f * sin(mTime->Get()*30.);
 //			mFrontLeftMotor->Set(motor);
 //			mFrontRightMotor->Set(motor);
 //			mFrontLeftMotor->ClearIaccum();
 //			mFrontRightMotor->ClearIaccum();
-
-//			mFrontLeftMotor->Set(354.);
-//			mFrontRightMotor->Set(354.);
 
 			positionEncLeft = mFrontLeftMotor->GetEncPosition();
 			positionLeft = mFrontLeftMotor->GetPosition();
@@ -146,12 +199,19 @@ public:
 			errorLeft = mFrontLeftMotor->GetClosedLoopError();
 			errorRight = mFrontRightMotor->GetClosedLoopError();
 
-			printf("# %f, %d, %d, %d, %d, %f, %f, %d, %d, %f, %f, %f, %f\n",
-					mTime->Get(),
-					positionEncLeft, positionEncRight, velocityEncLeft, velocityEncRight,
-					positionLeft, positionRight, errorLeft, errorRight,
-					velocityLeft, velocityRight, mFrontLeftMotor->GetOutputVoltage(), mFrontRightMotor->GetOutputVoltage());
+			printf("Time %f; Encoders: %d, %d, %d, %d; EgrUnits: %f, %f, %f, %f, %d, %d; Volts: %f, %f\n",
+				mTime->Get(),
+				positionEncLeft, positionEncRight, velocityEncLeft, velocityEncRight,
+				positionLeft, positionRight,
+				velocityLeft, velocityRight, errorLeft, errorRight,
+				mFrontLeftMotor->GetOutputVoltage(), mFrontRightMotor->GetOutputVoltage());
 
+			printf("v, v, a, t FL: %f, %f, %f,%f;  FR: %f, %f, %f,%f;  RL: %f, %f, %f,%f;  RR: %f, %f, %f,%f\n",
+				mFrontLeftMotor->GetBusVoltage(), mFrontLeftMotor->GetOutputVoltage(), mFrontLeftMotor->GetOutputCurrent(), mFrontLeftMotor->Get(),
+				mFrontRightMotor->GetBusVoltage(), mFrontRightMotor->GetOutputVoltage(), mFrontRightMotor->GetOutputCurrent(), mFrontRightMotor->Get(),
+				mRearLeftMotor->GetBusVoltage(), mRearLeftMotor->GetOutputVoltage(), mRearLeftMotor->GetOutputCurrent(), mRearLeftMotor->Get(),
+				mRearRightMotor->GetBusVoltage(), mRearRightMotor->GetOutputVoltage(), mRearRightMotor->GetOutputCurrent(), mRearRightMotor->Get());
+		 
 			// positionEncLeft, positionEncRight, velocityEncLeft, velocityEncRight updated 0.1 seconds
 			// positionLeft, positionRight, velocityLeft, velocityRight updated 0.02 seconds
 			// errorLeft, errorRight updated 0.01 seconds (maybe, maybe faster)
@@ -162,36 +222,29 @@ public:
 //				 printf("\nOne revolution\n");
 //				 break;
 //				}
-			Wait(0.01);
+			Wait(0.02);
 		}
-
 		mFrontLeftMotor->Set(0.);
 		mFrontRightMotor->Set(0.);
 	}
 
+//  _____                _   
+// |_   _|   ___   ___  | |_ 
+//   | |    / _ \ / __| | __|
+//   | |   |  __/ \__ \ | |_ 
+//   |_|    \___| |___/  \__|
+
 	void Test()
 	{
-	std::cout << "\nEntered Test mode\n";
+	std::cout << "\nEntered Test to tune drive motors using %VBus control mode and followers\n";
 
-	mFrontLeftMotor->ConfigForwardSoftLimitEnable(false);
-	mFrontRightMotor->ConfigForwardSoftLimitEnable(false);
-	mFrontLeftMotor->ConfigReverseSoftLimitEnable(false);
-	mFrontRightMotor->ConfigReverseSoftLimitEnable(false);
-
-	std::cout << "Front Left ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
-	std::cout << "Front Right ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
 	std::cout << "Resetting Talons\n";
-
 	mFrontLeftMotor->Reset();
 	mFrontRightMotor->Reset();
 	Wait(.5);
-
 	mFrontLeftMotor->Enable();
 	mFrontRightMotor->Enable();
 	Wait(.5);
-
-	std::cout << "Front Left ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
-	std::cout << "Front Right ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
 
 	mFrontLeftMotor->SetControlMode(mFrontLeftMotor->ControlMode::kPercentVbus);
 	mFrontLeftMotor->Set(0.);
@@ -199,32 +252,55 @@ public:
 	mFrontRightMotor->SetControlMode(mFrontRightMotor->ControlMode::kPercentVbus);
 	mFrontRightMotor->Set(0.);
 
-	Wait(.5);
+	Wait(.2);
+
+	mRearLeftMotor->SetControlMode(CANSpeedController::kFollower);
+	mRearLeftMotor->Set(CAN_PORT::FRONT_LEFT);
+
+	mRearRightMotor->SetControlMode(CANSpeedController::kFollower);
+	mRearRightMotor->Set(CAN_PORT::FRONT_RIGHT);
+	Wait(.2);
 
 	std::cout << "Front Left ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
 	std::cout << "Front Right ControlMode " << mFrontRightMotor->GetControlMode() << std::endl;
 	std::cout << "Rear Left ControlMode " << mRearLeftMotor->GetControlMode() << std::endl;
 	std::cout << "Rear Right ControlMode " << mRearRightMotor->GetControlMode() << std::endl;
 
+	std::cout << "Front Left IsControlEnabled " << mFrontLeftMotor->IsControlEnabled() << std::endl;
+	std::cout << "Front Right IsControlEnabled " << mFrontRightMotor->IsControlEnabled() << std::endl;
+	std::cout << "Rear Left IsControlEnabled " << mRearLeftMotor->IsControlEnabled() << std::endl;
+	std::cout << "Rear Right IsControlEnabled " << mRearRightMotor->IsControlEnabled() << std::endl;
+
+	// right motor is mirror of left so invert its actions since it runs backwards of the left motor
+	mFrontRightMotor->SetInverted(true);  // invert power so + power goes forward for both sides; not used for PID control of mirrored motors; only for %VBus
+	mFrontRightMotor->SetSensorDirection(true); // invert encoder to match left; true reverses GetPosition & GetSpeed but not GetEncPosition nor GetEncVel
+	Wait(.2);
+
+	mFrontLeftMotor->SetEncPosition(0);
+	mFrontRightMotor->SetEncPosition(0);
+
 	while(IsTest())
 	{
 		if(IsEnabled())
 		{
-			std::cout << "\nPID Auto Tuner Starting.\n";
+			std::cout << "\nPID Auto Tuner Starting for tank tread motors.\n";
 
-// first motor in the argument list is tuned; second motor goes along for the ride (tank turn)
-			TuneMain(mFrontLeftMotor, mFrontRightMotor);
+// First motor in the argument list is tuned; second motor goes along for the ride.
+// The other 2 motors are assumed to follow.
+// The last parameter specifies if the second motor moves in the same direction as the first motor (drive straight -> false)
+// or moves in the opposite direction as the first motor (tank turn -> true).
+			TuneMain(mFrontLeftMotor, mFrontRightMotor, mRearLeftMotor, mRearRightMotor, true);
 			Wait(2.);
 
 // tune the other motor
-			TuneMain(mFrontRightMotor, mFrontLeftMotor);
+			TuneMain(mFrontRightMotor, mFrontLeftMotor, mRearRightMotor, mRearLeftMotor, true);
 
 			std::cout << "\nPID Auto Tuner Completed.\n";
 			break;
 		}
 		else
 		{
-			std::cout << "Test waiting for ENABLE to run PID Auto Tuner";
+			std::cout << "Test waiting for ENABLE";
 			Wait(1.);
 		}
 	}
@@ -232,5 +308,10 @@ public:
 	}
 
 };
+
+//   _ __ ___     __ _  (_)  _ __  
+//  | '_ ` _ \   / _` | | | | '_ \  .
+//  | | | | | | | (_| | | | | | | |
+//  |_| |_| |_|  \__,_| |_| |_| |_|
 
 START_ROBOT_CLASS(Robot)
