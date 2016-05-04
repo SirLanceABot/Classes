@@ -1,6 +1,6 @@
 #include "WPILib.h"
 #include "Constants.h"
-#include "AutoTune_Example.h"
+#include "AutoTuneCamera.h"
 #include <math.h>
 
 class Robot: public SampleRobot
@@ -12,6 +12,13 @@ class Robot: public SampleRobot
 	Timer * mTime;
 	PowerDistributionPanel *mPDP;
 public:
+
+//  ____            _               _   
+// |  _ \    ___   | |__     ___   | |_ 
+// | |_) |  / _ \  | '_ \   / _ \  | __|
+// |  _ <  | (_) | | |_) | | (_) | | |_ 
+// |_| \_\  \___/  |_.__/   \___/   \__|
+
 	Robot()
 	{
 		mFrontLeftMotor = new CANTalon(CAN_PORT::FRONT_LEFT);
@@ -22,9 +29,27 @@ public:
 		mPDP = new  PowerDistributionPanel();
 	}
 
+//  /\/|  ____            _               _   
+// |/\/  |  _ \    ___   | |__     ___   | |_ 
+//       | |_) |  / _ \  | '_ \   / _ \  | __|
+//       |  _ <  | (_) | | |_) | | (_) | | |_ 
+//       |_| \_\  \___/  |_.__/   \___/   \__|
+
 	~Robot()
 	{
+		delete mPDP;
+		delete mTime;
+		delete mRearRightMotor;
+		delete mFrontRightMotor;
+		delete mRearLeftMotor;
+		delete mFrontLeftMotor;
 	}
+
+//  ____            _               _     ___           _   _   
+// |  _ \    ___   | |__     ___   | |_  |_ _|  _ __   (_) | |_ 
+// | |_) |  / _ \  | '_ \   / _ \  | __|  | |  | '_ \  | | | __|
+// |  _ <  | (_) | | |_) | | (_) | | |_   | |  | | | | | | | |_ 
+// |_| \_\  \___/  |_.__/   \___/   \__| |___| |_| |_| |_|  \__|                                                          
 
 	void RobotInit()
 	{
@@ -39,6 +64,11 @@ public:
 		mRearRightMotor->ClearError();
 		mRearRightMotor->ClearStickyFaults();
 		Wait(.5);
+		
+		mFrontLeftMotor->ConfigForwardSoftLimitEnable(false);
+		mFrontRightMotor->ConfigForwardSoftLimitEnable(false);
+		mFrontLeftMotor->ConfigReverseSoftLimitEnable(false);
+		mFrontRightMotor->ConfigReverseSoftLimitEnable(false);
 
 // CAN Talon control frame rate default = 10 ms; set by optional argument to the object constructor
 // but changing it slightly to 8 was a disaster - garbage motor control
@@ -60,9 +90,11 @@ public:
 		std::cout << "Left IsControlEnabled " << mFrontLeftMotor->IsControlEnabled() << std::endl;
 		std::cout << "Right IsControlEnabled " << mFrontRightMotor->IsControlEnabled() << std::endl;
 
-// fixme: Limit Voltage change?
-		mFrontLeftMotor->SetVoltageRampRate(50.);
-		mFrontRightMotor->SetVoltageRampRate(50.);
+		mFrontLeftMotor->SetVoltageRampRate(300.);  // good for desktop board with small plugin power supply
+		mFrontRightMotor->SetVoltageRampRate(300.); // otherwise low-power faults and D-Link crashes; still crashes from high power to 0 though
+
+		mFrontLeftMotor->SetCloseLoopRampRate(300.);
+		mFrontRightMotor->SetCloseLoopRampRate(300.);
 
 		mFrontLeftMotor->SetFeedbackDevice(CANTalon::QuadEncoder);
 		mFrontRightMotor->SetFeedbackDevice(CANTalon::QuadEncoder);
@@ -70,66 +102,52 @@ public:
 		mFrontLeftMotor->SetEncPosition(0);
 		mFrontRightMotor->SetEncPosition(0);
 
-		mFrontLeftMotor->SetSensorDirection(false); // true reverses GetPosition & GetSpeed but not GetEncPosition nor GetEncVel
-		mFrontRightMotor->SetSensorDirection(true); // invert to match left; true reverses GetPosition & GetSpeed but not GetEncPosition nor GetEncVel
-
-		Wait(.2);
-
-#ifdef TABLE_TOP_PG45775126000_26_9KET
-// 7 encoder pulses/motor rev x 26.9:1 motor revs/gear box output shaft rev = 188; times 4x quadrature encoder = 753.2 edges/motor rev/output shaft rev
-		mFrontLeftMotor->ConfigEncoderCodesPerRev((uint16_t)(7L*26.9L + 0.5L));
-		mFrontRightMotor->ConfigEncoderCodesPerRev(188);
-#endif
-
-#ifdef ROBOT
-// no ConfigEncoderCodesPerRev()
-// GetPosition() == GetEncPosition, GetSpeed == GetEncVel(); but updated faster than Enc versions
-#endif
-
-// fixme: PID Tuning parameters go here
-		mFrontLeftMotor->SetPID(4., 0.02, 150.);
-		mFrontLeftMotor->SetControlMode(mFrontLeftMotor->ControlMode::kSpeed);
-		mFrontLeftMotor->Set(0.);
-		Wait(.2);
-
-		mFrontRightMotor->SetPID(4., 0.02, 150.);
-		mFrontRightMotor->SetControlMode(mFrontRightMotor->ControlMode::kSpeed);
-		mFrontRightMotor->Set(0.);
-		Wait(.2);
-
-		mRearLeftMotor->SetControlMode(CANSpeedController::kFollower);
-		mRearLeftMotor->Set(CAN_PORT::FRONT_LEFT);
-
-		mRearRightMotor->SetControlMode(CANSpeedController::kFollower);
-		mRearRightMotor->Set(CAN_PORT::FRONT_RIGHT);
+		mFrontLeftMotor->ConfigEncoderCodesPerRev(TALON_DRIVE::ENCODER_CODES_PER_REV);
+		mFrontRightMotor->ConfigEncoderCodesPerRev(TALON_DRIVE::ENCODER_CODES_PER_REV);
 		Wait(.2);
 	}
 
+//      _              _
+//     / \     _   _  | |_    ___    _ __     ___    _ __ ___     ___    _   _   ___ 
+//    / _ \   | | | | | __|  / _ \  | '_ \   / _ \  | '_ ` _ \   / _ \  | | | | / __|
+//   / ___ \  | |_| | | |_  | (_) | | | | | | (_) | | | | | | | | (_) | | |_| | \__ \  .
+//  /_/   \_\  \__,_|  \__|  \___/  |_| |_|  \___/  |_| |_| |_|  \___/   \__,_| |___/                                                                               
+
+	void Autonomous()
+	{
+	}
+
+//    ___                                  _                     ____                   _                    _ 
+//   / _ \   _ __     ___   _ __    __ _  | |_    ___    _ __   / ___|   ___    _ __   | |_   _ __    ___   | |
+//  | | | | | '_ \   / _ \ | '__|  / _` | | __|  / _ \  | '__| | |      / _ \  | '_ \  | __| | '__|  / _ \  | |
+//  | |_| | | |_) | |  __/ | |    | (_| | | |_  | (_) | | |    | |___  | (_) | | | | | | |_  | |    | (_) | | |
+//   \___/  | .__/   \___| |_|     \__,_|  \__|  \___/  |_|     \____|  \___/  |_| |_|  \__| |_|     \___/  |_|
+//          |_|                                                                                                
+
+	void OperatorControl()
+	{
+	}
+	
+//  _____                _   
+// |_   _|   ___   ___  | |_ 
+//   | |    / _ \ / __| | __|
+//   | |   |  __/ \__ \ | |_ 
+//   |_|    \___| |___/  \__|
+
 	void Test()
 	{
-	std::cout << "\nEntered Test mode\n";
+	std::cout << "\nEntered Test mode to tune Camera targeting\n";
 
-	mFrontLeftMotor->ConfigForwardSoftLimitEnable(false);
-	mFrontRightMotor->ConfigForwardSoftLimitEnable(false);
-	mFrontLeftMotor->ConfigReverseSoftLimitEnable(false);
-	mFrontRightMotor->ConfigReverseSoftLimitEnable(false);
+//	std::cout << "Resetting Talons\n";
+//	mFrontLeftMotor->Reset();
+//	mFrontRightMotor->Reset();
+//	Wait(.5);
+//	mFrontLeftMotor->Enable();
+//	mFrontRightMotor->Enable();
+//	Wait(.5);
 
-	std::cout << "Front Left ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
-	std::cout << "Front Right ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
-	std::cout << "Resetting Talons\n";
-
-	mFrontLeftMotor->Reset();
-	mFrontRightMotor->Reset();
-	Wait(.5);
-
-	mFrontLeftMotor->Enable();
-	mFrontRightMotor->Enable();
-	Wait(.5);
-
-	std::cout << "Front Left ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
-	std::cout << "Front Right ControlMode " << mFrontRightMotor->GetControlMode() << std::endl;
-	std::cout << "Rear Left ControlMode " << mRearLeftMotor->GetControlMode() << std::endl;
-	std::cout << "Rear Right ControlMode " << mRearRightMotor->GetControlMode() << std::endl;
+	mFrontLeftMotor->SetEncPosition(0);
+	mFrontRightMotor->SetEncPosition(0);
 
 	while(IsTest())
 	{
@@ -137,14 +155,14 @@ public:
 		{
 			std::cout << "\nPID Auto Tuner Starting.\n";
 
-			TuneMain(mFrontLeftMotor, mFrontRightMotor);
+			TuneMain(mFrontLeftMotor, mFrontRightMotor, mRearLeftMotor, mRearRightMotor);
 
 			std::cout << "\nPID Auto Tuner Completed.\n";
 			break;
 		}
 		else
 		{
-			std::cout << "Test waiting for ENABLE to run PID Auto Tuner";
+			std::cout << "Test waiting for ENABLE";
 			Wait(1.);
 		}
 	}
@@ -152,5 +170,10 @@ public:
 	}
 
 };
+
+//   _ __ ___     __ _  (_)  _ __  
+//  | '_ ` _ \   / _` | | | | '_ \  .
+//  | | | | | | | (_| | | | | | | |
+//  |_| |_| |_|  \__,_| |_| |_| |_|
 
 START_ROBOT_CLASS(Robot)
