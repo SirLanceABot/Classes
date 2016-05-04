@@ -35,22 +35,16 @@ So setting follower mode also must the managed well.  Extra motors would follow 
 Extra motors would follow the primary motors if using ArcadeDrive with 2 motors but must use all 4 motors as %VBus if using ArcadeDrive with 4 motors.
 
 **AutoTuneTank**
-
 	**Test**
-	
 		tunes the tank tread PID controller
 		sets front motors %VBus with rear motor followers for Talon motor controllers and then leaves them that way
 	**OperatorControl**
-	
 		drives straight using PID speed control
 		sets front motors PID speed control with rear motor followers for Talon motor controllers and then leaves them that way
-
 **AutoTuneCamera**
-
 	**Test**
 		tunes camera aiming at target
 		sets front motors PID control with rear followers and then leaves all motors %VBus
-		
 **CameraTargeting**
 	**RobotInit**
 		sets front motors PID speed control with rear motor followers
