@@ -183,11 +183,7 @@ void PID::SetControllerDirection(int Direction)
  * purposes.  this are the functions the PID Front-end uses for example
  ******************************************************************************/
 double PID::GetKp(){ return  dispKp; }
-
-double PID::GetKi(){ return  dispKi; }
-
-double PID::GetKd(){ return  dispKd; }
-
-int PID::GetMode(){ return  inAuto ? AUTOMATIC : MANUAL; }
-
-int PID::GetDirection(){ return controllerDirection; }
+double PID::GetKi(){ return  dispKi;}
+double PID::GetKd(){ return  dispKd;}
+int PID::GetMode(){ return  inAuto ? AUTOMATIC : MANUAL;}
+int PID::GetDirection(){ return controllerDirection;}
