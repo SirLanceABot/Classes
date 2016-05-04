@@ -96,4 +96,4 @@ private:
 	const int ITG3200_FS_3 = 0x18;
 };
 
-#endif /* SRC_ITG_3200_H_ */
+#endif /* ITG_3200_H_ */

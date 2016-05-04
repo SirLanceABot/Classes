@@ -1,0 +1,123 @@
+Public Methods:
+
+ITG3200::ITG3200(I2C::Port port, uint8_t deviceAddress, float Sensitivity_Scale_Factor):
+
+roboRIO I2C port
+I2c device address
+gyro sensitivity (optional, default = 14.375 LSB/(º/s)) // sensitivity varies with the particular device in use (±6% manufacturing variations and ±10% temperature fluctuations)
+
+verifies the device is addressable (verify the ID register).
+The Sample rate is set to 0 - 8000 Hz 256 filtering
+The zero centering calibration is completed.  (approximately 3 second still time required.)
+The first reading for rate and angle is completed and available for use.
+
+It is assumed the next time step will be started immediately in subsequent code.  If the timed loop is not started immediately then the angle (and time) should be reset (use SetAngle()) when the loop is started.
+
+void ITG3200::Calibrate()
+600 time step samples are taken 1 per .004 seconds with the first 5 skipped and the next 595 samples averaged.  The value is used as the 0 degrees/second of angular rate (per axis).
+The gyro must be still for the calibration period.
+
+void ITG3200::GetAngle(double Angle[])
+Returns the last acquired angle from Get() of the 3 axes [degrees]
+
+void ITG3200::GetAngleRate(double Angle_Rate[])
+Returns the last acquired rate from Get() of the 3 axes [degrees per second].
+
+float ITG3200::GetTemperature()
+Returns the last acquired temperature from Get() [degrees C].  [±1 ºC]
+
+void ITG3200::Get()
+Acquires the current temperature and angular rate from the gyro registers.
+Performs the time step integration to calculate angle.  The user must call this method often to maintain accuracy of the angle.
+
+bool ITG3200::IsWorking()
+Returns the verification set by the constructor.  If a working device fails after object construction, there is no indication of the new failed state - it still appears as functional.
+
+void ITG3200::SetAngle(double Angle[])
+Sets the current angle of each axis as specified in the argument.
+Sets the previous time-step time to the current time.
+This effectively resets the time integration of the angular rate.
+Normally the gyro would be pointed at a known angle (typically 0, 0, 0) and SetAngle called to start integration from that point.
+
+void ITG3200::SetSampleRate(uint8_t DLPF_CFG)
+Set the gyro internal sample rate and low pass filtering.
+The external sample rate and time integration is determined by how often the user calls Get().
+
+The DLPF_CFG parameter sets the digital low pass filter configuration. It also determines the internal sampling rate used by the device as shown in the table below.
+DLPF_CFG DLPF_CFG Low Pass Filter Bandwidth Internal Sample Rate
+0
+256Hz
+8kHz
+1
+188Hz
+1kHz
+2
+98Hz
+1kHz
+3
+42Hz
+1kHz
+4
+20Hz
+1kHz
+5
+10Hz
+1kHz
+6
+5Hz
+1kHz
+7
+Reserved
+Reserved
+Parameters:
+FS_SEL Full scale selection for gyro sensor data
+DLPF_CFG Digital low pass filter configuration and internal sampling rate configuration
+=========
+
+Private Methods:
+
+void ITG3200::GetRaw()
+Acquires the gyro registers for temperature and angular rate.
+=========
+
+Typical usage:
+// device address on the I2C bus depends on address pin setting on the gyro
+#define ITG3200_I2C_ADDR 0x68
+#define ITG3200_I2C_ADDR_ALT 0x69
+
+Declaration:
+	std::unique_ptr<ITG3200> mITG3200_1;
+//////////////
+Construction:
+	mITG3200_1(std::make_unique<ITG3200>(I2C::Port::kOnboard, ITG3200_I2C_ADDR, 14.375*0.99))
+//////////////	
+Data Acquisition:	
+		double Angle[3]={0.,0.,0.};
+		double Angle_Rate[3];
+		float Temperature;
+
+		if (mITG3200_1->IsWorking())
+			{
+			mITG3200_1->SetSampleRate(5); // optional change the sampling from the default
+			Wait(.7); // wait for new data with new sampling rate
+			mITG3200_1->Calibrate(); // optional recalibrate with new sampling or if conditions might have changed
+			mITG3200_1->SetAngle(Angle); // optional reset angles to known position and reset integration timer if much time has elapsed since the constructor ran
+			}
+
+		while (IsOperatorControl() && IsEnabled())
+		{
+			if (mITG3200_1->IsWorking())
+			{
+			mITG3200_1->Get();
+			mITG3200_1->GetAngle(Angle);
+			mITG3200_1->GetAngleRate(Angle_Rate);
+			Temperature = mITG3200_1->GetTemperature();
+			printf("[ITG3200_1] Temperature %7.2f X %9.2f Y %9.2f Z %9.2f Xrate %9.2f Yrate %9.2f Zrate %9.2f\n",
+					Temperature,
+					Angle[0], Angle[1], Angle[2],
+					Angle_Rate[0], Angle_Rate[1], Angle_Rate[2]);
+			}
+
+			Wait(.01);
+		}
+///////////////
