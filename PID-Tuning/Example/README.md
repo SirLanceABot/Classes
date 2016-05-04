@@ -11,6 +11,7 @@ Warning about CTRE CAN Talon motor reversals:
 
 The CAN Talon functions have 3 different motor reversal functions to support (easily?) a pair of motors being mirrored.
 
+```C++
 // right motor is mirror of left so invert its actions since it runs backwards of the left motor
 
 mFrontRightMotor->SetInverted(true);
@@ -23,7 +24,7 @@ mFrontRightMotor->SetSensorDirection(true);
 mFrontRightMotor->SetClosedLoopOutputDirection(true);
  // reverses the power to the motor in PID controller mode similarly to SetInverted(true) for %VBus
  // value ignored for %VBus and only checked if in closed loop control
- 
+``` 
 So if mixing do-it-yourself driving such as with the PID controllers and then without PID control and with the WPILib drive functions such as ArcadeDrive
 be be aware of the need to manage the SetInverted.  ArcadeDrive does its own +- power setting so SetInverted(true) messes up that built-in, behind-the-scenes scheme.
 
