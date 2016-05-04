@@ -1,7 +1,8 @@
 // Aim robot at target using camera deviation input to PID controller to set tank turn track speed
 
-#include "WPILib.h"
 #include "CameraTargetingPID.h"
+#include "WPILib.h"
+#include "constants.h"
 #include "StripChart.h"
 #include <math.h>
 
@@ -34,7 +35,7 @@ double setpoint;  //  process value setpoint - "input" (motor speed from encoder
 double output, output_previous = -DBL_MAX;    //  control value
 
 // control (output) signal limits
-double controllerMin = -800.L, controllerMax = 800.L;
+double controllerMin = TALON_DRIVE::CONTROLLER_MIN, controllerMax = TALON_DRIVE::CONTROLLER_MAX;
 
 // sign correlation of control signal and process variable
 int Direction=DIRECT; // DIRECT is + controller is + process variable; REVERSE is the other way + yields -
@@ -72,7 +73,7 @@ double sampleTime = .06L; // seconds
 
 //                              M A I N
 
-int TargetMain(CANTalon * mMotorA, CANTalon * mMotorB)
+int TargetMain(CANTalon * mFrontLeftMotor, CANTalon * mFrontRightMotor, CANTalon * mRearLeftMotor, CANTalon * mRearRightMotor)
 {
 std::cout << __FILE__ << " " <<__DATE__ << " " << __TIME__ << " " << __PRETTY_FUNCTION__ << " line:" << __LINE__ << std::endl;
 
@@ -113,9 +114,9 @@ StripChart myChart(	setpoint,		// center of left process variable graph
 
 //             S E T U P   T H E   C O N T R O L L E R
 
-kp = 8.; // fixme: use the right PID values
-ki = .2;
-kd = 2.;
+kp = TALON_DRIVE::CameraKp;
+ki = TALON_DRIVE::CameraKi;
+kd = TALON_DRIVE::CameraKd;
 
 PID myPID(&input, &output, &setpoint, &loopStartTime, kp, ki, kd, Direction);
 myPID.SetSampleTime((int)(1000.L*sampleTime + .5L)); // input sampling time; controller checks to make sure it wasn't called faster than input changes
@@ -129,8 +130,8 @@ myPID.SetControllerDirection(Direction);
 
 //                    S E T U P   T H E   L O O P
 
-mMotorA->SetEncPosition(0); // reset A & B encoders
-mMotorB->SetEncPosition(0);
+ mFrontLeftMotor->SetEncPosition(0); // reset A & B encoders
+ mFrontRightMotor->SetEncPosition(0);
 
 timer->Reset(); // reset the loop timer to 0
 
@@ -167,16 +168,10 @@ while (mDS.IsEnabled())
 
 	if(abs(input) <= 2) // pick so robot will coast to the center - no more, no less
 		{
-		std::cout << "   O N   T A R G E T !";
 		// stop driving
-		mMotorA->SetControlMode(mMotorA->ControlMode::kPercentVbus);
-		mMotorA->Set(0.f);
-		mMotorB->SetControlMode(mMotorB->ControlMode::kPercentVbus);
-		mMotorB->Set(0.f);
-//		Wait(.5L);
+		std::cout << "   O N   T A R G E T !";
 		myPID.SetMode(MANUAL);
 		break;
-//		continue;
 		}
 
 /*  /\  /\  /\  /\  /\  /\  /\  /\  /\  /\  /\  /\  /\  /\  /\  /\  /\
@@ -196,14 +191,14 @@ while (mDS.IsEnabled())
 
 //   Tank turn so control left and right treads in opposite directions
 
-	mMotorA->Set(output);
-	mMotorB->Set(-output);
+	 mFrontLeftMotor->Set(output);
+	 mFrontRightMotor->Set(-output);
 
 	// clear I accumulation from previous setpoint
 	if (output != output_previous)
 		{
-		mMotorA->ClearIaccum();
-		mMotorB->ClearIaccum();
+		 mFrontLeftMotor->ClearIaccum();
+		 mFrontRightMotor->ClearIaccum();
 		output_previous = output;
 		}
 
@@ -233,25 +228,37 @@ while (mDS.IsEnabled())
 
 //                     P R O C E S S   L O O P   E N D
 
-// stop driving
-mMotorA->SetControlMode(mMotorA->ControlMode::kPercentVbus);
-mMotorA->Set(0.f);
-mMotorB->SetControlMode(mMotorB->ControlMode::kPercentVbus);
-mMotorB->Set(0.f);
+// stop driving, leave PID mode, set all back to %VBus for next by ArcadeDrive, etc, in WPILib driving
+ mFrontLeftMotor->SetControlMode( mFrontLeftMotor->ControlMode::kPercentVbus);
+ mFrontLeftMotor->Set(0.f);
+ mFrontRightMotor->SetControlMode( mFrontRightMotor->ControlMode::kPercentVbus);
+ mFrontRightMotor->Set(0.f);
+ mRearLeftMotor->SetControlMode( mRearLeftMotor->ControlMode::kPercentVbus);
+ mRearLeftMotor->Set(0.f);
+ mRearRightMotor->SetControlMode( mRearRightMotor->ControlMode::kPercentVbus);
+ mRearRightMotor->Set(0.f);
+ mFrontLeftMotor->ClearIaccum(); // clean up anything left over from any previous Talon PID controller
+ mFrontRightMotor->ClearIaccum();
 
-//mMotorA->Set(0.f);
-//mMotorB->Set(0.f);
-//
-//mMotorA->Reset();
-//mMotorB->Reset();
+ Wait(.2);
+ 
+// if going back to driving with WPILib, say ArcadeDrive then do NOT use the SetInverted(true) because ArcadeDrive already inverts the right motor.
+// if doing your own drive commands - Set(...) then the SetInverted is probably needed.  It was false during PID control because PID control has its
+// own inversion and another SetInverted(true) negates that in bad ways.  Done with the targeting PID control so consider need for SetInverted(true).
+
+//mFrontRightMotor->SetInverted(true);  // invert power so + power goes forward for both sides; not used for PID control of mirrored motors; only for %VBus
+//mRearRightMotor->SetInverted(true);  // invert power so + power goes forward for both sides; not used for PID control of mirrored motors; only for %VBus
+
+// mFrontLeftMotor->Reset();
+// mFrontRightMotor->Reset();
 //Wait(.5L);
 //
-//mMotorA->Enable();
-//mMotorB->Enable();
+// mFrontLeftMotor->Enable();
+// mFrontRightMotor->Enable();
 //Wait(.5L);
 //
-//mMotorA->ClearIaccum();
-//mMotorB->ClearIaccum();
+// mFrontLeftMotor->ClearIaccum();
+// mFrontRightMotor->ClearIaccum();
 
 std::cout << "\n\nExit TargetMain\n\n" << std::endl;
 

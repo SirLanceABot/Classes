@@ -3,6 +3,6 @@
 
 class CANTalon;
 
-int TargetMain(CANTalon* mLeftDriveMotor, CANTalon* mRightDriveMotor);
+int TargetMain(CANTalon * mFrontLeftMotor, CANTalon * mFrontRightMotor, CANTalon * mRearLeftMotor, CANTalon * mRearRightMotor);
 
 #endif
