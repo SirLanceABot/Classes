@@ -12,7 +12,6 @@ public:
 	~CANTalon4237();
 	void Set(float);
 	void ResetEncoder();
-	void Test();
 	void SetFollower(int);
 	void SetMaster();
 	int GetEncoder();
