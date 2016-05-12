@@ -50,9 +50,9 @@ void OperatorControl()
 	***************************************************/
 	
 	printf("\n\nS T A R T I N G   I R   C A L I B R A T I O N\n\n");
-	
+
 	sprintf(header, "Enter %d Samples", MAX_SAMPLES);
-	
+
 	SmartDashboard::PutString("Number of Samples", header);
 
 	lastDistance = lastVoltage = -999.;
@@ -166,12 +166,15 @@ void OperatorControl()
     for (int axisDistance = 100; axisDistance >= 0; axisDistance--)
 	{
 	printf("%101.101s\n", line[axisDistance]);
+	Wait(.02);
 	}
-	
+
 	printf("\n\nE N D I N G   I R   C A L I B R A T I O N   -   C O M P L E T E D\n\n");
 
+	fflush(stdout);
+
 	/**************************************************
-	end test method
+	end OperatorControl method
 	**************************************************/
 	}
 	
