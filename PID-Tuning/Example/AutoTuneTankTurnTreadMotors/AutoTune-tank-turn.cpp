@@ -137,7 +137,7 @@ printf("millisecs                 Lspeed    Lmean    Lstddev    Lmin     Lmax   
 timer->Reset();  // reset straight run calibration timer to 0
 
 // get the encoders' speeds and print running statistics of response to both from the same motor power input
-for (int count = 1; count <= 30; count++)
+for (int count = 1; count <= 20; count++)
 {
 	double ASpeed, BSpeed;
 
@@ -152,7 +152,7 @@ for (int count = 1; count <= 30; count++)
 		BSpeed);
 	}
 	else
-	{ // Guess that it's steady state now so collect data
+	{ // Guess that ratio is steady state now so collect data
 	ADriveEncoder.Push(ASpeed);
 	BDriveEncoder.Push(BSpeed);
 	

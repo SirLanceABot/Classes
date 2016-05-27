@@ -84,11 +84,11 @@ public:
 //		mFrontRightMotor->SetStatusFrameRateMs(CANTalon::StatusFrameRate::StatusFrameRateAnalogTempVbat, 100);
 		Wait(.2);
 
-		mFrontLeftMotor->SetVoltageRampRate(300.);  // good for desktop board with small plugin power supply
-		mFrontRightMotor->SetVoltageRampRate(300.); // otherwise low-power faults and D-Link crashes; still crashes from high power to 0 though
+		mFrontLeftMotor->SetVoltageRampRate(30.);  // good for desktop board with small plugin power supply
+		mFrontRightMotor->SetVoltageRampRate(30.); // otherwise low-power faults and D-Link crashes; still crashes from high power to 0 though
 
-		mFrontLeftMotor->SetCloseLoopRampRate(300.);
-		mFrontRightMotor->SetCloseLoopRampRate(300.);
+		mFrontLeftMotor->SetCloseLoopRampRate(30.);
+		mFrontRightMotor->SetCloseLoopRampRate(30.);
 
 		mFrontLeftMotor->SetFeedbackDevice(CANTalon::QuadEncoder);
 		mFrontRightMotor->SetFeedbackDevice(CANTalon::QuadEncoder);
@@ -134,7 +134,7 @@ public:
 		Wait(.5);
 
 		// right motor is mirror of left so invert its actions since it runs backwards of the left motor
-		mFrontRightMotor->SetInverted(false);  // invert power so + power goes forward for both sides; not used for PID control of mirrored motors; only for %VBus
+		mFrontRightMotor->SetInverted(true);  // invert power so + power goes forward for both sides; not used for PID control of mirrored motors; only for %VBus
 		mFrontRightMotor->SetSensorDirection(true); // invert encoder to match left; true reverses GetPosition & GetSpeed but not GetEncPosition nor GetEncVel
 		mFrontRightMotor->SetClosedLoopOutputDirection(true); // reverses the power to the motor in PID controller mode - compensate for the other reversals done above
 		Wait(.2);
