@@ -84,4 +84,9 @@ const int FRONT_RIGHT = 1;
 const int REAR_RIGHT = 3;
 }
 
+namespace DIO_PORT //0-9, expansion board 10+
+{
+const int LIGHT_RING = 10;
+}
+
 #endif /* CONSTANTS_H_ */

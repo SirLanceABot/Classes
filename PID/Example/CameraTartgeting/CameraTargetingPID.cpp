@@ -84,6 +84,13 @@ timer = new Timer();
 
 DriverStation& mDS = DriverStation::GetInstance();
 
+std::shared_ptr<DigitalOutput> mLight;
+mLight = std::make_shared<DigitalOutput>(DIO_PORT::LIGHT_RING);
+mLight->Set(true);
+
+//Wait(600.); // testing camera view with the lights on
+//return 0;
+
 // timer for entire run
 timer->Start();
 
@@ -259,6 +266,8 @@ while (mDS.IsEnabled())
 //
 // mFrontLeftMotor->ClearIaccum();
 // mFrontRightMotor->ClearIaccum();
+
+mLight->Set(false);
 
 std::cout << "\n\nExit TargetMain\n\n" << std::endl;
 
