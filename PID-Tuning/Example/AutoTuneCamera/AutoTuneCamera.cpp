@@ -81,6 +81,13 @@ std::cout << __FILE__ << " " <<__DATE__ << " " << __TIME__ << " " << __PRETTY_FU
 
 std::cout << "\n\nSetting PID and follower modes\n\n";
 
+std::shared_ptr<DigitalOutput> mLight;
+mLight = std::make_shared<DigitalOutput>(DIO_PORT::LIGHT_RING);
+mLight->Set(true);
+
+//Wait(600.); // testing camera view with the lights on
+//return 0;
+
 // Setup the tread drive motors' internal (Talon SRX) PID controller to be the secondary controller in a cascade of controllers
 mFrontLeftMotor->ClearIaccum(); // clean up anything left over from any previous Talon PID controller
 mFrontRightMotor->ClearIaccum();
@@ -104,9 +111,9 @@ mRearRightMotor->Set(CAN_PORT::FRONT_RIGHT);
 Wait(.2);
 
 // right motor is mirror of left so invert its actions since it runs backwards of the left motor
-mFrontRightMotor->SetInverted(false);  // invert power so + power goes forward for both sides; not used for PID control of mirrored motors; only for %VBus
+mFrontRightMotor->SetInverted(true);  // invert power so + power goes forward for both sides; not used for PID control of mirrored motors; only for %VBus
 mFrontRightMotor->SetSensorDirection(true); // invert encoder to match left; true reverses GetPosition & GetSpeed but not GetEncPosition nor GetEncVel
-mFrontRightMotor->SetClosedLoopOutputDirection(true); // reverses the power to the motor in PID controller mode - compensate for the other reversals done above
+mFrontRightMotor->SetClosedLoopOutputDirection(true); // reverses the power to the motor in PID controller mode - SetInverted doesn't work for PID
 Wait(.2);
 
 // setup the roboRealm linkage
@@ -206,7 +213,7 @@ while (mDS.IsEnabled())
 	double imageWidth = roboRealm->GetNumber("IMAGE_WIDTH", 320); // fixme: hard-wired 320/2 = 160 throughout this program
 	double xPosition;
 
-	while (roboRealm->GetNumber("BLOB_COUNT", 0.L) < .5L) { Wait(.03); }; // wait for a blob to reappear
+	while (roboRealm->GetNumber("BLOB_COUNT", 0.L) < .5L) { Wait(.01); }; // wait for a blob to reappear
 
 	xPosition = roboRealm->GetNumber("COG_X", 160.L); // get the center of gravity of the blob
 
@@ -337,6 +344,8 @@ mFrontLeftMotor->ClearIaccum(); // clean up for next PID usage
 mFrontRightMotor->ClearIaccum();
 
 Wait(.1);
+
+mLight->Set(false);
 
 std::cout << "\n\nExit TuneMain\n\n" << std::endl;
 

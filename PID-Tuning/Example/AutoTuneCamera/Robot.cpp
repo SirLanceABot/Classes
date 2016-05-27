@@ -90,11 +90,11 @@ public:
 		std::cout << "Left IsControlEnabled " << mFrontLeftMotor->IsControlEnabled() << std::endl;
 		std::cout << "Right IsControlEnabled " << mFrontRightMotor->IsControlEnabled() << std::endl;
 
-		mFrontLeftMotor->SetVoltageRampRate(300.);  // good for desktop board with small plugin power supply
-		mFrontRightMotor->SetVoltageRampRate(300.); // otherwise low-power faults and D-Link crashes; still crashes from high power to 0 though
+		mFrontLeftMotor->SetVoltageRampRate(30.);  // good for desktop board with small plugin power supply
+		mFrontRightMotor->SetVoltageRampRate(30.); // otherwise low-power faults and D-Link crashes; still crashes from high power to 0 though
 
-		mFrontLeftMotor->SetCloseLoopRampRate(300.);
-		mFrontRightMotor->SetCloseLoopRampRate(300.);
+		mFrontLeftMotor->SetCloseLoopRampRate(30.);
+		mFrontRightMotor->SetCloseLoopRampRate(30.);
 
 		mFrontLeftMotor->SetFeedbackDevice(CANTalon::QuadEncoder);
 		mFrontRightMotor->SetFeedbackDevice(CANTalon::QuadEncoder);

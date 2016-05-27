@@ -40,7 +40,7 @@ const double PuUnits = 1000.L;
 
 // todo: Tank Turn Tread Drive Motors PID Tuning parameters go here (from AutoTuneTank run)
 const double TankTurnKp = 2.5;
-const double TankTurnKi = 0.01;
+const double TankTurnKi = 0.012;
 const double TankTurnKd = 0.; // some say use Kd = 0 for the secondary controller of a cascade (use PI not PID)
 
 #endif
@@ -64,7 +64,7 @@ const double PuUnits = 1000.L;
 
 // todo: Tank Turn Tread Drive Motors PID Tuning parameters go here (from AutoTuneTank run)
 const double TankTurnKp = 2.5;
-const double TankTurnKi = 0.01;
+const double TankTurnKi = 0.012;
 const double TankTurnKd = 0.; // some say use Kd = 0 for the secondary controller of a cascade (PI not PID)
 
 // todo: Camera PID using this motor Tuning parameters go here (from AutoTuneCamera run)
@@ -82,6 +82,11 @@ const int FRONT_LEFT = 0;
 const int REAR_LEFT = 2;
 const int FRONT_RIGHT = 1;
 const int REAR_RIGHT = 3;
+}
+
+namespace DIO_PORT //0-9, expansion board 10+
+{
+const int LIGHT_RING = 10;
 }
 
 #endif /* CONSTANTS_H_ */
