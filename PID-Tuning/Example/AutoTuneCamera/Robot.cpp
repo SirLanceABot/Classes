@@ -85,7 +85,7 @@ public:
 		Wait(.2);
 
 		std::cout << "Left ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
-		std::cout << "Right ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
+		std::cout << "Right ControlMode " << mFrontRightMotor->GetControlMode() << std::endl;
 
 		std::cout << "Left IsControlEnabled " << mFrontLeftMotor->IsControlEnabled() << std::endl;
 		std::cout << "Right IsControlEnabled " << mFrontRightMotor->IsControlEnabled() << std::endl;
