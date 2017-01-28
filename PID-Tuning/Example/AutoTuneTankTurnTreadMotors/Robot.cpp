@@ -160,9 +160,9 @@ public:
 		std::cout << "\n\nPID and follower modes set\n\n";
 	
 		std::cout << "Front Left ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
-		std::cout << "Front Right ControlMode " << mFrontLeftMotor->GetControlMode() << std::endl;
+		std::cout << "Front Right ControlMode " << mFrontRightMotor->GetControlMode() << std::endl;
 		std::cout << "Rear Left ControlMode " << mRearLeftMotor->GetControlMode() << std::endl;
-		std::cout << "Rear Right ControlMode " << mRearLeftMotor->GetControlMode() << std::endl;
+		std::cout << "Rear Right ControlMode " << mRearRightMotor->GetControlMode() << std::endl;
 
 		std::cout << "Front Left IsControlEnabled " << mFrontLeftMotor->IsControlEnabled() << std::endl;
 		std::cout << "Front Right IsControlEnabled " << mFrontRightMotor->IsControlEnabled() << std::endl;
