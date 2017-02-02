@@ -303,7 +303,7 @@ while (mDS.IsEnabled())
 //////////////////////////////////////////////////////////////////////////////////
 //            START Conversion to CAN Talon units
 //
-				kp = kp * TALON_DRIVE::PuUnits;
+				kp = kp * TALON_DRIVE::KuUnits;
 				ki = ki * TALON_DRIVE::KuUnits/TALON_DRIVE::PuUnits;
 				kd = kd * TALON_DRIVE::KuUnits*TALON_DRIVE::PuUnits;
 				std::cout << "\nCAN Talon Control with Kp= " << kp << " Ki=" << ki << " Kd=" << kd << "\n";
