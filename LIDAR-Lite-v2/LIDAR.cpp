@@ -202,12 +202,12 @@ mode/status register 0x01 (1)
 Bit	Function	Notes
 Bit 7	Eye Safe	This bit will go high if eye-safety protection has been activated
 Bit 6	Error Detection	Process error detected / measurement invalid
-Bit 5	Health	“1” if good, “0” if bad
+Bit 5	Health	"1" if good, "0" if bad
 Bit 4	Secondary return	Secondary return detected above correlation noise floor threshold
 Bit 3	Signal not valid	Indicates that the signal correlation peak is equal to or below correlation record noise threshold
 Bit 2	Sig overflow flag	Overflow detected in correlation process associated with a signal acquisition
 Bit 1	Ref overflow flag	Overflow detected in correlation process associated with a reference acquisition
-Bit 0	Ready Status	“0” is ready for new command, “1” is busy with acquisition
+Bit 0	Ready Status	"0" is ready for new command, "1" is busy with acquisition
 Health status indicates that the preamp is operating properly, transmit power is active and a reference pulse has been processed and has been stored.
 
 mode configuration register 0x4b (75)
@@ -217,7 +217,7 @@ Bit 6	NOT USED
 Bit 5	NOT USED
 Bit 4	Select Reference/Signal	Selects Reference or Signal Records when operating from control register 0x40
 Bit 3	NOT USED
-Bit 2	Select Max Range	“1” selects the longer distance; “0” selects the shorter distance
-Bit 1	Select Range Criteria	“1” selects return data based on distance; “0” selects strongest return, regardless of distance
-Bit 0	Select Second Return	Controls echo processing selection :”1” switches to alternative return; “0” Selects data associated with detection criteria
+Bit 2	Select Max Range	"1" selects the longer distance; "0" selects the shorter distance
+Bit 1	Select Range Criteria	"1" selects return data based on distance; "0" selects strongest return, regardless of distance
+Bit 0	Select Second Return	Controls echo processing selection :"1" switches to alternative return; "0" Selects data associated with detection criteria
 */
