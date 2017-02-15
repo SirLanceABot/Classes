@@ -5,8 +5,6 @@
 #include "WPIlib.h"
 #include <memory>
 
-class XboxJoystick;
-
 class ITG3200
 {
 public:
@@ -24,7 +22,7 @@ public:
 	double GetZ(); // returns the yaw (rotation)
 	double GetX(); // returns the roll
 	double GetY(); // returns the pitch
-	void Test(std::shared_ptr<XboxJoystick>); // not generally needed
+	void Test(); // not generally needed
 	
 	// I2C addresses
 	static constexpr int ITG3200_I2C_ADDR = 0x68;
