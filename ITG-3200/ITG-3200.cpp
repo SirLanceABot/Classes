@@ -1,16 +1,17 @@
 #include "ITG-3200.h"
 #include "WPILib.h"
 #include "Constants.h"
-#include "XboxJoystick.h"
 
-ITG3200::ITG3200(I2C::Port port, uint8_t deviceAddress, int sampleRate, double initialAngle[], float sensitivity, double integrationRate) :
-mGyro (new I2C(port, deviceAddress)),
-m_backgroundLoop (std::make_unique<Notifier>(&ITG3200::Get, this)),
-mTimer (new Timer()),
-mSensitivity (sensitivity),
-mIntegrationRate(integrationRate)
+ITG3200::ITG3200(I2C::Port port, uint8_t deviceAddress, int sampleRate, double initialAngle[], float sensitivity, double integrationRate)
+	:
+	mGyro (new I2C(port, deviceAddress)),
+	m_backgroundLoop (std::make_unique<Notifier>(&ITG3200::Get, this)),
+	mTimer (new Timer()),
+	mSensitivity (sensitivity),
+	mWorking(true),
+	mIntegrationRate(integrationRate)
 {
-	printf("File %18s Date %s Time %s Object %p\n",__FILE__,__DATE__, __TIME__, this);
+	std::printf("[ITG-3200] File %18s Date %s Time %s Object %p\n",__FILE__,__DATE__, __TIME__, this);
 
 	mAngle[0] = 0.0;
 	mAngle[1] = 0.0;
@@ -18,28 +19,36 @@ mIntegrationRate(integrationRate)
 
 	mTimer->Start();
 
-	// printf("Status=:%#.2x\n", mBuffer[0]);
+	frc::Wait(.1);
 
-	Wait(.1);
+	if (IsWorking() && mGyro->Write(ITG3200_PWR_MGM, ITG3200_RESET))
+	{
+		mWorking = false;
+		std::printf("[ITG-3200] reset failed\n");
+	}
 
-	mGyro->Write(ITG3200_PWR_MGM, ITG3200_RESET);
+	frc::Wait(.1);
 
-	Wait(.1);
-
-	mGyro->Read(ITG3200_ID_REGISTER, 1, mBuffer);
-
-	mWorking = (int8_t)(mBuffer[0] & ITG3200_ID_BITS) >> 1 == ITG3200_ID;
+	if (IsWorking())
+		{
+			if (mGyro->Read(ITG3200_ID_REGISTER, 1, mBuffer))
+			{
+				mWorking = false;
+				std::printf("[ITG-3200] read ID failed\n");
+			}
+			else mWorking = (int8_t)(mBuffer[0] & ITG3200_ID_BITS) >> 1 == ITG3200_ID;
+		}
 
 	if (IsWorking())
 	{
-		printf("[ITG-3200] gyro working on port %x, address %x, device ID register %x\n",
+		std::printf("[ITG-3200] gyro working on port %d, address %#.2x, device ID register %#.2x\n",
 				port, deviceAddress, mBuffer[0]);
 
 		SetSampleRate(sampleRate);
 
-		Wait(1.0);
+		frc::Wait(1.0);
 
-		printf("[ITG-3200] starting calibration - do not vibrate gyro until completed\n");
+		std::printf("[ITG-3200] starting calibration - do not vibrate gyro until completed\n");
 
 		Calibrate();
 
@@ -47,7 +56,7 @@ mIntegrationRate(integrationRate)
 	}
 	else
 	{
-		printf("[ITG-3200] gyro NOT working on port %x, address %x, device ID register %x\n", port, deviceAddress, mBuffer[0]);
+		std::printf("[ITG-3200] gyro NOT working on port %d, address %#.2x, device ID register %#.2x\n", port, deviceAddress, mBuffer[0]);
 	}
 }
 
@@ -82,17 +91,17 @@ void ITG3200::Calibrate()
 				temp[j] += mRotation[j];
 			}
 		}
-		Wait(delay);
+		frc::Wait(delay);
 	}
 
-	printf("[ITG-3200] completed calibrated offset of X Y Z: ");
+	std::printf("[ITG-3200] completed calibrated offset of X Y Z: ");
 
 	for(int i = 0; i < 3; i++)
 	{
 		mOffset[i] = -(float)temp[i] / (float)(reads - skip);
-		printf(" %f, ", mOffset[i]);
+		std::printf(" %f, ", mOffset[i]);
 	}
-	printf("\n");
+	std::printf("\n");
 
 	m_backgroundLoop->StartPeriodic(mIntegrationRate); // background function starts running
 }
@@ -106,12 +115,14 @@ void ITG3200::Get()
 
 	GetRaw();
 
-	std::lock_guard<priority_mutex> ProtectMe(m_mutex); // protect the shared memory from others' access while it's being updated here
-
-	for(int i = 0; i < 3; i++)
 	{
-		mAngleRate[i] = (mRotation[i] + mOffset[i])/mSensitivity; // convert raw sensor to angular rate
-		mAngle[i] += mAngleRate[i] * (current_time - mPrevTime); // integrate angular rate to yield angle
+		std::lock_guard<priority_mutex> ProtectMe(m_mutex); // protect the shared memory from others' access while it's being updated here
+
+		for(int i = 0; i < 3; i++)
+		{
+			mAngleRate[i] = (mRotation[i] + mOffset[i])/mSensitivity; // convert raw sensor to angular rate
+			mAngle[i] += mAngleRate[i] * (current_time - mPrevTime); // integrate angular rate to yield angle
+		}
 	}
 
 	mPrevTime = current_time;
@@ -157,11 +168,14 @@ void ITG3200::SetSampleRate(uint8_t sampleRate) // sampleRate is the digital Low
 
 	dLPFFS = ITG3200_FS_3 | sampleRate;
 
-	mGyro->Write(ITG3200_DLPF_FS, dLPFFS);
+	if (mGyro->Write(ITG3200_DLPF_FS, dLPFFS))
+	{
+		mWorking = false;
+		std::printf("[ITG-3200] write configuration failed\n");
+	}
+	else std::printf("[ITG-3200] DLPF, Full Scale, %#.2x\n", dLPFFS);
 
-	printf("[ITG-3200] DLPF, Full Scale, %#.2x\n", dLPFFS);
-
-	Wait(0.06);
+	frc::Wait(0.06);
 }
 
 void ITG3200::GetOffset(double offset[3])
@@ -192,54 +206,34 @@ double ITG3200::GetY()
 	return angle[1];
 }
 
-void ITG3200::Test(std::shared_ptr<XboxJoystick> xbox)
+void ITG3200::Test()
 {
 	double angle[3];
 	double angleRate[3];
 	GetAngle(angle);
 	GetAngleRate(angleRate);
-	float leftY;
-		bool printMenu = true;
-
-		while(xbox->GetX() == false)
-		{
-			if(printMenu == true)
-			{
-				printf("Press X to Exit\n");
-				printf("Press A and Left Y to display gyro\n");
-				printMenu = false;
-			}
-
-			while(xbox->GetA())
-			{
-				leftY = xbox->GetLeftYAxis();
-				printMenu = true;
-				if(leftY != 0 && xbox->GetA())
-				{
-					GetAngle(angle);
-					GetAngleRate(angleRate);
-					printf("[ITG3200] temperature: %7.2f, X: %9.2f, Y: %9.2f, Z: %9.2f, Xrate: %9.2f, Yrate: %9.2f, Zrate: %9.2f\n",
-							GetTemperature(),
-							angle[0], angle[1], angle[2],
-							angleRate[0], angleRate[1], angleRate[2]);
-				}
-			}
-		}
-
+	std::printf("[ITG3200] temperature: %7.2f, X: %9.2f, Y: %9.2f, Z: %9.2f, Xrate: %9.2f, Yrate: %9.2f, Zrate: %9.2f\n",
+			GetTemperature(),
+			angle[0], angle[1], angle[2],
+			angleRate[0], angleRate[1], angleRate[2]);
 }
 
 void ITG3200::GetRaw()
 {
-	mGyro->Read(ITG3200_TEMP_H, 8, mBuffer);
+	if (mGyro->Read(ITG3200_TEMP_H, 8, mBuffer))
+	{
+		std::printf("[ITG3200] GetRaw Read failed\n");
+		for (unsigned int i = 0; i < sizeof(mBuffer); i++) mBuffer[i] = 0;
+	}
 	mRotation[0] = (float)(int16_t)(((mBuffer[2] << 8 ) | mBuffer[3]));	// x
 	mRotation[1] = (float)(int16_t)(((mBuffer[4] << 8 ) | mBuffer[5]));	// y
 	mRotation[2] = (float)(int16_t)(((mBuffer[6] << 8 ) | mBuffer[7]));	// z
-
-	std::lock_guard<priority_mutex> ProtectMe(m_mutex); // protect the shared memory from others' access while it's being updated here
-	mTemperature = (float)(int16_t)(((mBuffer[0] << 8 ) | mBuffer[1]));  // temperature
-
-	//			printf("Temperature %#.2x %#.2x %f\n",
+	{
+		std::lock_guard<priority_mutex> ProtectMe(m_mutex); // protect the shared memory from others' access while it's being updated here
+		mTemperature = (float)(int16_t)(((mBuffer[0] << 8 ) | mBuffer[1]));  // temperature
+	}
+	//			std::printf("[ITG3200] Temperature %#.2x %#.2x %f\n",
 	//					mBuffer[0], mBuffer[1], mTemperature);
-	//			printf("X %#.2x %#.2x %f Y %#.2x %#.2x %f Z %#.2x %#.2x %f\n",
+	//			std::printf("[ITG3200] X %#.2x %#.2x %f Y %#.2x %#.2x %f Z %#.2x %#.2x %f\n",
 	//					mBuffer[2], mBuffer[3], mRotation[0], mBuffer[4], mBuffer[5], mRotation[1], mBuffer[6], mBuffer[7], mRotation[2]);
 }
