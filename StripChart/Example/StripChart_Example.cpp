@@ -14,10 +14,12 @@ myChart.PrintStripChart(
     output);		// output from controller
 */
 
-    StripChart myChart(30., 0., 1.);
+    StripChart myChart(30., -1., 1.);
 
     for (unsigned long loopStartTime =0; loopStartTime <100000; loopStartTime++)
-		myChart.PrintStripChart(loopStartTime, fmod(loopStartTime/1000.+12., 57.), sin(loopStartTime/1000.+12.));
-
+    {
+	std::cout << "\n";
+	myChart.PrintStripChart(loopStartTime, fmod(loopStartTime/1000.+12., 57.), sin(loopStartTime/1000.+12.));
+    }
     return 0;
 }
