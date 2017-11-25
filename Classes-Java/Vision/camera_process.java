@@ -144,10 +144,10 @@ class camera_process implements Runnable {
 				for(MatOfPoint aContour : contoursFiltered) // iterate one contour at a time through all the contours
 				{
 					// debug output
-					System.out.println("[Vision] " + aContour.size() + " points in contour"); // a contour is a bunch of points - how many?
+					System.out.print("[Vision] " + aContour.size() + " points in contour\n[Vision]"); // a contour is a bunch of points - how many?
 
 					for(Point aPoint : aContour.toArray()) // convert MatofPoint to an array of those Points and iterate (could do list of Points but no need for this)
-					{System.out.print("[Vision] " + aPoint + " ");} // print each point
+					{System.out.print(" " + aPoint);} // print each point
 
 					Rect br = Imgproc.boundingRect(aContour); // bounding upright rectangle for the contour's points
 					int cogX = br.x + (br.width/2); // center of gravity
@@ -160,9 +160,10 @@ class camera_process implements Runnable {
 					}
 
 					// draw center of gravity markers
-					Imgproc.drawMarker(mat, new Point(cogX,cogY), new Scalar(190, 190, 190), Imgproc.MARKER_CROSS , 9 , 2 , 1);
+					Imgproc.drawMarker(mat, new Point(cogX,cogY), new Scalar(255, 255, 255), Imgproc.MARKER_CROSS , 10 , 2 , 1);
+					Imgproc.drawMarker(mat, new Point(cogX,cogY), new Scalar(140, 140, 140), Imgproc.MARKER_CROSS , 5 , 1 , 1);
 					// debug output
-					System.out.printf("[Vision] %d %d %d %d %d %d\n", br.x, br.y, br.width, br.height, cogX, cogY);
+					System.out.printf("\n[Vision] (x, y) (%d, %d) (w, h) (%d, %d) (cog x, y) (%d, %d)\n", br.x, br.y, br.width, br.height, cogX, cogY);
 				}
 				// an example drawing function: Imgproc.rectangle(mat, new Point(100, 100), new Point(200, 200), new Scalar(255, 255, 255), 5);
 			}
