@@ -367,9 +367,9 @@ public class ITG3200 {
 		// right byte is converted to implied int conserving the sign that we don't want so wipe it out with AND 000000FF. (the sign comes from the first r as Java erroneously thinks)
 		// rrrrrrrr => ssssssss ssssssss ssssssss rrrrrrrr => 00000000 00000000 00000000 rrrrrrrr 
 		// then OR (add) the 2 implied int pieces to make an implied int number. ssssssss ssssssss slllllll rrrrrrrr
-		mRotation[0] = (float)(((rawData[2] << 8) | (rawData[3] & 0xFF))); // x
-		mRotation[1] = (float)(((rawData[4] << 8) | (rawData[5] & 0xFF))); // y
-		mRotation[2] = (float)(((rawData[6] << 8) | (rawData[7] & 0xFF))); // z
+		mRotation[0] = (float)((rawData[2] << 8) | (rawData[3] & 0xFF)); // x
+		mRotation[1] = (float)((rawData[4] << 8) | (rawData[5] & 0xFF)); // y
+		mRotation[2] = (float)((rawData[6] << 8) | (rawData[7] & 0xFF)); // z
 		synchronized(this)
 		{
 			mTemperature = (float)(((rawData[0] << 8) | (rawData[1] & 0xFF))); // temperature
