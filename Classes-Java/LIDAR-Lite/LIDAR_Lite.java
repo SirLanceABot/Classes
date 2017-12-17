@@ -2,11 +2,12 @@ package org.usfirst.frc.team4237.robot;
 
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import edu.wpi.first.wpilibj.I2C;
 import org.usfirst.frc.team4237.robot.Id;
 
 public class LIDAR_Lite{
-
 	/**
 	 * Last parameter for integrationRate not specified.
 	 * 
@@ -24,7 +25,6 @@ public class LIDAR_Lite{
 		mTimer = new Timer();
 		mDeviceAvailable = false;
 		mSamplePeriod = samplePeriod;
-		mDistance = -1;
 
 		mLIDAR = new I2C(port, deviceAddress.value); // define the device object on the I2C bus
 
@@ -111,16 +111,13 @@ public class LIDAR_Lite{
 
 		else if ( IsGoodReading() )
 		{ // have the 2 distance characters from the LIDAR-Lite registers so convert to int for our use
-			synchronized(this) // protect the shared memory from others' access while it's being updated here
-			{
-				mDistance = ((distance[0] & 0xFF) <<8) | (distance[1] & 0xFF); // update shared memory with the new LIDAR-Lite value
+				mDistance.set( ((distance[0] & 0xFF) <<8) | (distance[1] & 0xFF) ); // update shared memory with the new LIDAR-Lite value
 				// how to turn 2 Java bytes into 1 Java essentially unsigned int (lidar 2 bytes are llllllll rrrrrrrr)
 				// left byte is converted to implied int conserving the sign that we don't want as a sign and shifted to make room for the right byte.
 				// llllllll => ssssssss ssssssss ssssssss llllllll => 00000000 00000000 00000000 llllllll => 00000000 00000000 llllllll 00000000
 				// right byte is converted to implied int conserving the sign that we don't want as a sign. (the sign comes from the first r as Java erroneously thinks)
 				// rrrrrrrr => ssssssss ssssssss ssssssss rrrrrrrr => 00000000 00000000 00000000 rrrrrrrr 
 				// then OR (add) the 2 implied int pieces to make an implied int number. 00000000 00000000 llllllll rrrrrrrr
-			}
 		}
 
 		else System.out.printf ( "[LIDAR-Lite] Not Good Reading Distance, status register:%#2x line %s\n", mStatus[0], Id.__LINE__());
@@ -133,10 +130,7 @@ public class LIDAR_Lite{
 
 		if ( IsWorking() )
 		{
-			synchronized(this)
-			{
-				returnDistance = mDistance;
-			}
+				returnDistance = mDistance.get();
 		}
 		else
 		{
@@ -251,12 +245,10 @@ public class LIDAR_Lite{
 	private final I2C mLIDAR;
 	private final Timer mTimer;
 	private final double mSamplePeriod;
-
 	private TimerTask m_backgroundLoop;
 	private boolean mDeviceAvailable; // indicate if the Lidar is seen on the I2C bus; checked only once at startup
-	private int mDistance; // distance from Lidar [cm]
-
 	private byte[] mStatus = new byte[Register.STATUS.count]; // status from the Lidar
+	private AtomicInteger mDistance = new AtomicInteger(-1); // distance from Lidar [cm]
 }
 /*
  * Writing data to the LIDAR
