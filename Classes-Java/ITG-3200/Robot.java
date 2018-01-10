@@ -2,7 +2,7 @@ package org.usfirst.frc.team4237.robot;
 
 import edu.wpi.first.wpilibj.IterativeRobot;
 
-import static org.usfirst.frc.team4237.robot.Constants.*;
+import static org.usfirst.frc.team4237.robot.Constants.GYRO;
 
 public class Robot extends IterativeRobot {
 
