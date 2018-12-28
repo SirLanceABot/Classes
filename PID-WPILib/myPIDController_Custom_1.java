@@ -8,6 +8,10 @@ import edu.wpi.first.wpilibj.PIDSourceType;
 //TODO for each WPILIB based PID controller copy this entire class and customize for the device being controlled
 public class myPIDController_Custom_1
 {
+	public double processVariable;
+	public double controlSignal;
+	public PIDController mPID;
+
 	public class myPIDSource implements PIDSource
 	{
 		PIDSourceType PIDSourceType;
@@ -47,15 +51,24 @@ public class myPIDController_Custom_1
 		}
 	}
 
-	public double processVariable;
-	public double controlSignal;
-	public PIDController mPID;
-
-	myPIDController_Custom_1()
+	public class myPIDController extends PIDController
 	{
+		@Override
+		protected double calculateFeedForward() {
+			System.out.println("feed forward called");
+			return mPID.getF();
+		}
 
+		myPIDController(double Kp, double Ki, double Kd,  double Kf, PIDSource processVariable_source, PIDOutput controlSignal_sink, double period)
+		{
+			super(Kp, Ki, Kd,  Kf, processVariable_source, controlSignal_sink, period);
+		}
+	}
+
+	public myPIDController_Custom_1()
+	{
 		//TODO all the parameters of the PID controller and the process
-	
+
 		/////////////////////////////////////////////////////////////////
 		// process variable characteristics
 		double minimum_processVariable = 0;
@@ -75,7 +88,7 @@ public class myPIDController_Custom_1
 		double Ki = 0.06;
 		double Kd = 0.06;
 		double Kf = 200;
-		
+
 		double period = .050;  // controller loop period
 		// pidGet is called about every 20 milliseconds and just before pidWrite which is called every 50 milliseconds
 
@@ -84,11 +97,37 @@ public class myPIDController_Custom_1
 
 		myPIDSource processVariable_source = new myPIDSource();
 		processVariable_source.setPIDSourceType(processVariableType);
+
 		myPIDOutput controlSignal_sink = new myPIDOutput();
-		mPID = new PIDController(Kp, Ki, Kd,  Kf, processVariable_source, controlSignal_sink, period);
+		mPID = new myPIDController(Kp, Ki, Kd,  Kf, processVariable_source, controlSignal_sink, period);
 		mPID.setInputRange(minimum_processVariable, maximum_processVariable);
 		mPID.setSetpoint(processVariableSetpoint);
 		mPID.setOutputRange(minimum_controlSignal, maximum_controlSignal);
 		mPID.setAbsoluteTolerance(tolerance_processVariable);
 	}
+}
+
+///**
+//* Calculate the feed forward term.
+//*
+//* <p>Both of the provided feed forward calculations are velocity feed forwards. If a different
+//* feed forward calculation is desired, the user can override this function and provide his or
+//* her own. This function  does no synchronization because the PIDController class only calls it
+//* in synchronized code, so be careful if calling it oneself.
+//*
+//* <p>If a velocity PID controller is being used, the F term should be set to 1 over the maximum
+//* setpoint for the output. If a position PID controller is being used, the F term should be set
+//* to 1 over the maximum speed for the output measured in setpoint units per this controller's
+//* update period (see the default period in this class's constructor).
+//*/
+////protected double calculateFeedForward() {
+////if (m_pidInput.getPIDSourceType().equals(PIDSourceType.kRate)) {
+//// return m_F * getSetpoint();
+////} else {
+//// double temp = m_F * getDeltaSetpoint();
+//// m_prevSetpoint = m_setpoint;
+//// m_setpointTimer.reset();
+//// return temp;
+////}
+////}
 }
