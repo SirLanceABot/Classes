@@ -1,17 +1,15 @@
-package org.usfirst.frc.team4237.robot;
+package frc.robot;
 
-import edu.wpi.first.wpilibj.IterativeRobot;
+import edu.wpi.first.wpilibj.TimedRobot;
 
-import static org.usfirst.frc.team4237.robot.Constants.*;
-
-public class Robot extends IterativeRobot {
+public class Robot extends TimedRobot {
 
 	private LIDAR_Lite mLIDAR;
 
 	@Override
 	public void robotInit()
 	{
-		mLIDAR = new LIDAR_Lite(LIDAR.PORT, LIDAR.ADDRESS);
+		mLIDAR = new LIDAR_Lite(Constants.LIDAR.PORT, Constants.LIDAR.ADDRESS);
 	}
 
 	@Override
