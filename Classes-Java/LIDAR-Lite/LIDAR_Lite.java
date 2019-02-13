@@ -30,8 +30,10 @@ public class LIDAR_Lite {
 		 * reset probably not needed but this is an abundance of caution
 		 **********/
 		if (mLIDAR.write(Register.COMMAND.value, Command.RESET.value))
-			System.out.printf("[LIDAR-Lite] write operation failed line %s\n", Id.__LINE__());
-		else System.out.println("[LIDAR-Lite] Reset");
+			System.out.printf("[LIDAR-Lite] write reset failed line %s\n", Id.__LINE__());
+		else
+			System.out.println("[LIDAR-Lite] Reset");
+		
 		edu.wpi.first.wpilibj.Timer.delay(1.0); // wait for the reset to finish - guess this should be long enough
 
 		// read mode configuration register mostly just to see if the LIDAR-Lite is
@@ -59,11 +61,17 @@ public class LIDAR_Lite {
 		if (IsWorking()) {
 			System.out.printf("[LIDAR-Lite] working on port %s, address %s %#2x\n", port, deviceAddress, deviceAddress.value);
 
-			//GetAcquisitionCount(); // as found 
+			GetAcquisitionCount(); // as found; 0x80 default
 			int maxAcquisitionCount = 0xff;  // new value to set
 		 	if (mLIDAR.write(Register.ACQUISITION_COUNT.value, maxAcquisitionCount))
-			 	System.out.printf("[LIDAR-Lite] write operation failed line %s\n", Id.__LINE__());
+			 	System.out.printf("[LIDAR-Lite] write max acquisition count failed line %s\n", Id.__LINE__());
 			GetAcquisitionCount(); // read it back
+
+			GetLaserPower(); // as found; 0x6a default
+			int LaserPower = 0x6a;  // new value to set; some lasers don't like this changed
+		 	if (mLIDAR.write(Register.LASER_POWER.value, LaserPower))
+			 	System.out.printf("[LIDAR-Lite] write ;aser power failed line %s\n", Id.__LINE__());
+			GetLaserPower(); // read it back
 
 			StartPeriodic(mSamplePeriod);
 		} else {
@@ -103,23 +111,26 @@ public class LIDAR_Lite {
 
 		distanceRegister_1st[RegisterAddressLength - 1] = (byte) Register.DISTANCE_1_2.value; // hold the LIDAR-Lite
 																								// returned values
-
+ // not expected to be busy here but check to make sure because
+ // if the LIDAR-Lite is unplugged after initialization then likely
+ // this is where the thread will "hang" in this busy loop until
+ // the LIDAR is revived somehow
 		while (IsBusy()) {
 			edu.wpi.first.wpilibj.Timer.delay(.005);
-			if(IsBusy()) System.out.println("[LIDAR-Lite] Busy");
+			if(IsBusy()) System.out.println("[LIDAR-Lite] Busy or hung - check connections - distance not updated");
 			else break;
-		} // not expected to be busy here but check to make sure
-
+		}
+		
 		/*********** acquire distance **********/ // I2C::WriteBulk() also works
 		if (mLIDAR.write(Register.COMMAND.value, Command.ACQUIRE_DC_CORRECT.value)) // initiate distance acquisition
 																					// with DC stabilization
-			System.out.printf("[LIDAR-Lite] write operation failed line %s\n", Id.__LINE__());
+			System.out.printf("[LIDAR-Lite] write acquire failed line %s\n", Id.__LINE__());
 
 		while (IsBusy()) {
 			edu.wpi.first.wpilibj.Timer.delay(.005);
 			if(IsBusy()) System.out.println("[LIDAR-Lite] Busy acquiring");
 			else break;
-		} // should be busy briefly while acquiring distance
+		} // could be busy briefly while acquiring distance
 
 		/********** read distance **********/ // I2C::Read() does not work, I2C::Transaction() does not work
 		if (mLIDAR.writeBulk(distanceRegister_1st)) // tell LIDAR-Lite we want to start reading at the 1st distance
@@ -204,13 +215,34 @@ public class LIDAR_Lite {
 		/********** read status **********/
 		if (mLIDAR.writeBulk(aquisitionCountRegister)) // LIDAR-Lite command
 		{
-			System.out.printf("[LIDAR-Lite] writeBulk status failed! line %s\n", Id.__LINE__());
+			System.out.printf("[LIDAR-Lite] writeBulk max acquisition count failed! line %s\n", Id.__LINE__());
 		} else {
 			if (mLIDAR.readOnly(mAcquisitionCount, mAcquisitionCount.length)) // LIDAR-Lite command
 			{
-				System.out.printf("[LIDAR-Lite] readOnly status failed line %s\n", Id.__LINE__());
+				System.out.printf("[LIDAR-Lite] readOnly max acquisition count failed line %s\n", Id.__LINE__());
 			} else {
 				System.out.printf ( "[LIDAR-Lite] Aquisition Count %#2x\n", mAcquisitionCount[0]);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	boolean GetLaserPower() // get the LIDAR-Lite Laser Power
+	{
+		byte laserPowerRegister[] = new byte[RegisterAddressLength];
+		laserPowerRegister[RegisterAddressLength - 1] = (byte) Register.LASER_POWER.value;
+
+		/********** read status **********/
+		if (mLIDAR.writeBulk(laserPowerRegister)) // LIDAR-Lite command
+		{
+			System.out.printf("[LIDAR-Lite] writeBulk laser power failed! line %s\n", Id.__LINE__());
+		} else {
+			if (mLIDAR.readOnly(mLaserPower, mLaserPower.length)) // LIDAR-Lite command
+			{
+				System.out.printf("[LIDAR-Lite] readOnly laser power failed line %s\n", Id.__LINE__());
+			} else {
+				System.out.printf ( "[LIDAR-Lite] Laser Power %#2x\n", mLaserPower[0]);
 				return true;
 			}
 		}
@@ -260,6 +292,7 @@ public class LIDAR_Lite {
 		STATUS(0x01, 1), // read the single status byte
 		ACQUISITION_COUNT(0x02, 1), // read/write the maximum acquisition count 
 		DISTANCE_1_2(0x8f, 2), // using automatic sequence increment to read both (2) distance registers bytes
+		LASER_POWER(0x43, 1), //read/write laser power
 		MODE_CONFIGURATION(0x4b, 1); // read the single mode configuration byte
 		public final int value;
 		public final int count;
@@ -291,7 +324,9 @@ public class LIDAR_Lite {
 	}
 
 	private static enum StatusMask { // LIDAR status register bits masks
-		HEALTHY(0x20), BUSY(0x01), NOT_GOOD_READING(0x51);
+		HEALTHY(0x20),
+		BUSY(0x01),
+		NOT_GOOD_READING(0x51);
 		public final int value;
 
 		private StatusMask(int value) {
@@ -307,6 +342,7 @@ public class LIDAR_Lite {
 	private boolean mDeviceAvailable; // indicate if the Lidar is seen on the I2C bus; checked only once at startup
 	private byte[] mStatus = new byte[Register.STATUS.count]; // status from the Lidar
 	private byte[] mAcquisitionCount = new byte[Register.ACQUISITION_COUNT.count]; // acquisition count from the Lidar
+	private byte[] mLaserPower = new byte[Register.LASER_POWER.count]; // acquisition count from the Lidar
 	private AtomicInteger mDistance = new AtomicInteger(-2); // distance from Lidar [cm]
 }
 /*
