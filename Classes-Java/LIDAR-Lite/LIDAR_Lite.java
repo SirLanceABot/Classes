@@ -62,7 +62,7 @@ public class LIDAR_Lite {
 			System.out.printf("[LIDAR-Lite] working on port %s, address %s %#2x\n", port, deviceAddress, deviceAddress.value);
 
 			GetAcquisitionCount(); // as found; 0x80 default
-			int maxAcquisitionCount = 0xff;  // new value to set
+			int maxAcquisitionCount = 0x80;  // new value to set; changing may be overkill or inadequate
 		 	if (mLIDAR.write(Register.ACQUISITION_COUNT.value, maxAcquisitionCount))
 			 	System.out.printf("[LIDAR-Lite] write max acquisition count failed line %s\n", Id.__LINE__());
 			GetAcquisitionCount(); // read it back
@@ -292,7 +292,7 @@ public class LIDAR_Lite {
 		STATUS(0x01, 1), // read the single status byte
 		ACQUISITION_COUNT(0x02, 1), // read/write the maximum acquisition count 
 		DISTANCE_1_2(0x8f, 2), // using automatic sequence increment to read both (2) distance registers bytes
-		LASER_POWER(0x43, 1), //read/write laser power
+		LASER_POWER(0x43, 1), // read/write laser power
 		MODE_CONFIGURATION(0x4b, 1); // read the single mode configuration byte
 		public final int value;
 		public final int count;
@@ -342,7 +342,7 @@ public class LIDAR_Lite {
 	private boolean mDeviceAvailable; // indicate if the Lidar is seen on the I2C bus; checked only once at startup
 	private byte[] mStatus = new byte[Register.STATUS.count]; // status from the Lidar
 	private byte[] mAcquisitionCount = new byte[Register.ACQUISITION_COUNT.count]; // acquisition count from the Lidar
-	private byte[] mLaserPower = new byte[Register.LASER_POWER.count]; // acquisition count from the Lidar
+	private byte[] mLaserPower = new byte[Register.LASER_POWER.count]; // laser power from the Lidar
 	private AtomicInteger mDistance = new AtomicInteger(-2); // distance from Lidar [cm]
 }
 /*
