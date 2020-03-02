@@ -1,5 +1,11 @@
 package frc.robot;
 
+//  Acquire distance from LIDAR-Lite v2
+
+//  Distance is not changed if the distance read fails - old value is retained;
+//  this may not be appropriate.
+
+import java.util.HashMap;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,7 +36,7 @@ public class LIDAR_Lite {
 		 * reset probably not needed but this is an abundance of caution
 		 **********/
 		if (mLIDAR.write(Register.COMMAND.value, Command.RESET.value))
-			System.out.printf("[LIDAR-Lite] write reset failed line %s\n", Id.__LINE__());
+		System.out.println(String.format("[LIDAR-Lite] write reset failed line %s\n", Id.__LINE__()));
 		else
 			System.out.println("[LIDAR-Lite] Reset");
 		
@@ -46,37 +52,34 @@ public class LIDAR_Lite {
 
 		if (mLIDAR.writeBulk(modeConfigurationRegister)) // request LIDAR-Lite configuration
 		{
-			System.out.printf("[LIDAR-Lite] writeBulk modeConfiguration failed line %s LIDAR-Lite NOT functional\n",
-					Id.__LINE__());
+			System.out.println(String.format("[LIDAR-Lite] writeBulk modeConfiguration failed line %s LIDAR-Lite NOT functional\n", Id.__LINE__()));
 		} else if (mLIDAR.readOnly(modeConfiguration, modeConfiguration.length)) // read the LIDAR-Lite configuration
 		{
-			System.out.printf("[LIDAR-Lite] readOnly modeConfiguration failed line %s LIDAR-Lite NOT functional\n",
-					Id.__LINE__());
+			System.out.println(String.format("[LIDAR-Lite] readOnly modeConfiguration failed line %s LIDAR-Lite NOT functional\n", Id.__LINE__()));
 		} else {
-			System.out.printf("[LIDAR-Lite] running with Mode Configuration %#2x\n", modeConfiguration[0]);
+			System.out.println(String.format("[LIDAR-Lite] running with Mode Configuration %#2x\n", modeConfiguration[0]));
 
 			mDeviceAvailable = true; // device seen so indicate that
 		}
 
 		if (IsWorking()) {
-			System.out.printf("[LIDAR-Lite] working on port %s, address %s %#2x\n", port, deviceAddress, deviceAddress.value);
+			System.out.println(String.format("[LIDAR-Lite] working on port %s, address %s %#2x\n", port, deviceAddress, deviceAddress.value));
 
 			GetAcquisitionCount(); // as found; 0x80 default
-			int maxAcquisitionCount = 0x80;  // new value to set; changing may be overkill or inadequate
+			int maxAcquisitionCount = 0x80;  // new value to set
 		 	if (mLIDAR.write(Register.ACQUISITION_COUNT.value, maxAcquisitionCount))
-			 	System.out.printf("[LIDAR-Lite] write max acquisition count failed line %s\n", Id.__LINE__());
+			 System.out.println(String.format("[LIDAR-Lite] write max acquisition count failed line %s\n", Id.__LINE__()));
 			GetAcquisitionCount(); // read it back
 
 			GetLaserPower(); // as found; 0x6a default
 			int LaserPower = 0x6a;  // new value to set; some lasers don't like this changed
 		 	if (mLIDAR.write(Register.LASER_POWER.value, LaserPower))
-			 	System.out.printf("[LIDAR-Lite] write ;aser power failed line %s\n", Id.__LINE__());
+			 System.out.println(String.format("[LIDAR-Lite] write laser power failed line %s\n", Id.__LINE__()));
 			GetLaserPower(); // read it back
 
 			StartPeriodic(mSamplePeriod);
 		} else {
-			System.out.printf("[LIDAR-Lite] NOT working on port %s, address %s %#2x\n", port, deviceAddress,
-					deviceAddress.value);
+			System.out.println(String.format("[LIDAR-Lite] NOT working on port %s, address %s %#2x\n", port, deviceAddress, deviceAddress.value));
 		}
 	}
 
@@ -101,9 +104,16 @@ public class LIDAR_Lite {
 	private class UpdateLIDAR extends TimerTask {
 
 		public void run() {
+			countIterations++; // count loops since printing error messages
+
 			Calculate(); // keep run() minimal - Get is where all the action is
+
+			if (countIterations >= 300)
+			{	
+				m.get();
+				countIterations = 0;}
+			}
 		}
-	}
 
 	void Calculate() {
 		byte distance[] = new byte[Register.DISTANCE_1_2.count]; // LIDAR-Lite command
@@ -117,28 +127,28 @@ public class LIDAR_Lite {
  // the LIDAR is revived somehow
 		while (IsBusy()) {
 			edu.wpi.first.wpilibj.Timer.delay(.005);
-			if(IsBusy()) System.out.println("[LIDAR-Lite] Busy or hung - check connections - distance not updated");
+			if(IsBusy()) m.put("[LIDAR-Lite] Busy or hung - check connections - distance not updated");
 			else break;
 		}
 		
 		/*********** acquire distance **********/ // I2C::WriteBulk() also works
 		if (mLIDAR.write(Register.COMMAND.value, Command.ACQUIRE_DC_CORRECT.value)) // initiate distance acquisition
 																					// with DC stabilization
-			System.out.printf("[LIDAR-Lite] write acquire failed line %s\n", Id.__LINE__());
+			m.put(String.format("[LIDAR-Lite] write acquire failed line %s\n", Id.__LINE__()));
 
 		while (IsBusy()) {
 			edu.wpi.first.wpilibj.Timer.delay(.005);
-			if(IsBusy()) System.out.println("[LIDAR-Lite] Busy acquiring");
+			if(IsBusy()) m.put("[LIDAR-Lite] Busy acquiring");
 			else break;
 		} // could be busy briefly while acquiring distance
 
 		/********** read distance **********/ // I2C::Read() does not work, I2C::Transaction() does not work
 		if (mLIDAR.writeBulk(distanceRegister_1st)) // tell LIDAR-Lite we want to start reading at the 1st distance
 													// register
-			System.out.printf("[LIDAR-Lite] writeBulk distance failed line %s\n", Id.__LINE__());
+			m.put(String.format("[LIDAR-Lite] writeBulk distance failed line %s\n", Id.__LINE__()));
 
 		else if (mLIDAR.readOnly(distance, distance.length)) // read the 2 distance registers
-			System.out.printf("[LIDAR-Lite] readOnly distance failed line %s\n", Id.__LINE__());
+			m.put(String.format("[LIDAR-Lite] readOnly distance failed line %s\n", Id.__LINE__()));
 
 		else if (IsGoodReading()) { // have the 2 distance characters from the LIDAR-Lite registers so convert to
 									// int for our use
@@ -159,8 +169,7 @@ public class LIDAR_Lite {
 		}
 
 		else
-			System.out.printf("[LIDAR-Lite] Not Good Reading Distance, status register:%#2x line %s\n", mStatus[0],
-					Id.__LINE__());
+			m.put(String.format("[LIDAR-Lite] Not Good Reading Distance, status register:%#2x line %s\n", mStatus[0], Id.__LINE__()));
 		// mDistance is not changed if the distance read fails - old value is retained;
 		// this may not be appropriate
 	}
@@ -179,7 +188,7 @@ public class LIDAR_Lite {
 
 	public String toString() {
 		if (IsWorking())
-			return String.format("[LIDAR-Lite] distance = %d", GetDistance());
+			return String.format("[LIDAR-Lite] distance [cm] = %d", GetDistance());
 		else
 			return String.format("[LIDAR-Lite] NOT working");
 	}
@@ -192,13 +201,13 @@ public class LIDAR_Lite {
 		/********** read status **********/
 		if (mLIDAR.writeBulk(statusRegister)) // LIDAR-Lite command
 		{
-			System.out.printf("[LIDAR-Lite] writeBulk status failed! line %s\n", Id.__LINE__());
+			m.put(String.format("[LIDAR-Lite] writeBulk status failed! line %s\n", Id.__LINE__()));
 		} else {
 			if (mLIDAR.readOnly(mStatus, mStatus.length)) // LIDAR-Lite command
 			{
-				System.out.printf("[LIDAR-Lite] readOnly status failed line %s\n", Id.__LINE__());
+				m.put(String.format("[LIDAR-Lite] readOnly status failed line %s\n", Id.__LINE__()));
 			} else {
-				// System.out.printf ( "[LIDAR-Lite] Status Good Reading, status register:%#2x
+				// m.put(String.format ( "[LIDAR-Lite] Status Good Reading, status register:%#2x
 				// line %s\n", mStatus[0], Id.__LINE__());
 				return true;
 			}
@@ -215,13 +224,13 @@ public class LIDAR_Lite {
 		/********** read status **********/
 		if (mLIDAR.writeBulk(aquisitionCountRegister)) // LIDAR-Lite command
 		{
-			System.out.printf("[LIDAR-Lite] writeBulk max acquisition count failed! line %s\n", Id.__LINE__());
+			m.put(String.format("[LIDAR-Lite] writeBulk max acquisition count failed! line %s\n", Id.__LINE__()));
 		} else {
 			if (mLIDAR.readOnly(mAcquisitionCount, mAcquisitionCount.length)) // LIDAR-Lite command
 			{
-				System.out.printf("[LIDAR-Lite] readOnly max acquisition count failed line %s\n", Id.__LINE__());
+				m.put(String.format("[LIDAR-Lite] readOnly max acquisition count failed line %s\n", Id.__LINE__()));
 			} else {
-				System.out.printf ( "[LIDAR-Lite] Aquisition Count %#2x\n", mAcquisitionCount[0]);
+				m.put(String.format ( "[LIDAR-Lite] Aquisition Count %#2x\n", mAcquisitionCount[0]));
 				return true;
 			}
 		}
@@ -236,13 +245,13 @@ public class LIDAR_Lite {
 		/********** read status **********/
 		if (mLIDAR.writeBulk(laserPowerRegister)) // LIDAR-Lite command
 		{
-			System.out.printf("[LIDAR-Lite] writeBulk laser power failed! line %s\n", Id.__LINE__());
+			m.put(String.format("[LIDAR-Lite] writeBulk laser power failed! line %s\n", Id.__LINE__()));
 		} else {
 			if (mLIDAR.readOnly(mLaserPower, mLaserPower.length)) // LIDAR-Lite command
 			{
-				System.out.printf("[LIDAR-Lite] readOnly laser power failed line %s\n", Id.__LINE__());
+				m.put(String.format("[LIDAR-Lite] readOnly laser power failed line %s\n", Id.__LINE__()));
 			} else {
-				System.out.printf ( "[LIDAR-Lite] Laser Power %#2x\n", mLaserPower[0]);
+				m.put(String.format ( "[LIDAR-Lite] Laser Power %#2x\n", mLaserPower[0]));
 				return true;
 			}
 		}
@@ -292,7 +301,7 @@ public class LIDAR_Lite {
 		STATUS(0x01, 1), // read the single status byte
 		ACQUISITION_COUNT(0x02, 1), // read/write the maximum acquisition count 
 		DISTANCE_1_2(0x8f, 2), // using automatic sequence increment to read both (2) distance registers bytes
-		LASER_POWER(0x43, 1), // read/write laser power
+		LASER_POWER(0x43, 1), //read/write laser power
 		MODE_CONFIGURATION(0x4b, 1); // read the single mode configuration byte
 		public final int value;
 		public final int count;
@@ -344,6 +353,54 @@ public class LIDAR_Lite {
 	private byte[] mAcquisitionCount = new byte[Register.ACQUISITION_COUNT.count]; // acquisition count from the Lidar
 	private byte[] mLaserPower = new byte[Register.LASER_POWER.count]; // laser power from the Lidar
 	private AtomicInteger mDistance = new AtomicInteger(-2); // distance from Lidar [cm]
+	private messageConsolidator m = new messageConsolidator();
+	static int countIterations = 0;
+	   
+	private class messageConsolidator
+	{  
+		HashMap<String, Integer> hm; 
+		
+		// Create a hash map - default size
+		messageConsolidator()
+		{
+			this(20);      // Create a hash map
+		}
+		
+		// Create a hash map
+		messageConsolidator(int size)
+		{
+			hm = new HashMap<String, Integer>(size);      // Create a hash map
+		}
+			
+		synchronized void put(String message)
+		{
+			boolean printImmediate = false;
+			if(printImmediate)
+			{
+				System.out.println(message);
+			}
+			else
+			{
+				Integer countErrors;
+				if(hm.containsKey(message))
+				{
+					countErrors = hm.get(message);
+				}
+				else
+				{
+					countErrors = 0;
+				}
+				
+				hm.put(message, countErrors + 1);
+			}
+		}
+		
+		synchronized void get()
+		{
+			hm.forEach((key,value) -> System.out.println(value + " x " + key));      
+			hm.clear();
+		}
+	}
 }
 /*
  * Writing data to the LIDAR

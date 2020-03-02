@@ -21,6 +21,8 @@ public class Robot extends TimedRobot {
 	@Override
 	public void teleopPeriodic()
 	{
-		System.out.println(mLIDAR);
+		if(mLIDAR.IsWorking()) 
+		{System.out.println(mLIDAR);} // do stuff - it's good
+		else{} // do stuff - it's dead
 	}
 }
