@@ -23,7 +23,7 @@ public class Robot extends TimedRobot {
 	{
 		if(mLIDAR.IsWorking()) 
 		{
-			if(mLIDAR.IsDistanceAvailable())
+			if(mLIDAR.IsDistanceAvailable()) // this is just if distance < 0
 			{
 				System.out.println("good " + mLIDAR);// do stuff - it's good
 			}

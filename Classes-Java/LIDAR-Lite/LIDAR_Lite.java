@@ -8,7 +8,6 @@ package frc.robot;
 import java.util.HashMap;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import edu.wpi.first.wpilibj.I2C;
@@ -103,7 +102,7 @@ public class LIDAR_Lite {
 	}
 
 	public boolean IsDistanceAvailable() {
-		return mDistanceAvailable.get();
+		return mDistance.get() >= 0;
 	}
 
 	private class UpdateLIDAR extends TimerTask {
@@ -121,39 +120,44 @@ public class LIDAR_Lite {
 		byte distance[] = new byte[Register.DISTANCE_1_2.count]; // LIDAR-Lite command
 		byte distanceRegister_1st[] = new byte[RegisterAddressLength]; // LIDAR-Lite command
 
-		distanceRegister_1st[RegisterAddressLength - 1] = (byte) Register.DISTANCE_1_2.value; // hold the LIDAR-Lite
-																								// returned values
- // not expected to be busy here but check to make sure because
- // if the LIDAR-Lite is unplugged after initialization then likely
- // this is where the thread will "hang" in this busy loop until
- // the LIDAR is revived somehow
-		while (IsBusy()) {
+		distanceRegister_1st[RegisterAddressLength - 1] = (byte) Register.DISTANCE_1_2.value; // hold the LIDAR-Lite returned values
+
+		// loop to retry a failed acquisition
+		for (int tryTwice=1; tryTwice <=2; tryTwice++)
+		{
+		// not expected to be busy here but check to make sure because
+		// if the LIDAR-Lite is unplugged after initialization then likely
+		// this is where the thread will "hang" in this busy loop until
+		// the LIDAR is revived somehow
+		for (int idx = 0; (idx<20) && IsBusy(); idx++)
+		{
 			edu.wpi.first.wpilibj.Timer.delay(.005);
-			if(IsBusy()) m.put("[LIDAR-Lite] Busy or hung - check connections - distance not updated");
+			if(IsBusy()) m.put("Busy or hung - check connections - distance not updated");
 			else break;
 		}
 		
 		/*********** acquire distance **********/ // I2C::WriteBulk() also works
 		if (mLIDAR.write(Register.COMMAND.value, Command.ACQUIRE_DC_CORRECT.value)) // initiate distance acquisition
 																					// with DC stabilization
-			m.put(String.format("[LIDAR-Lite] write acquire failed line %s\n", Id.__LINE__()));
+			m.put(String.format("write acquire failed line %s\n", Id.__LINE__()));
 
-		while (IsBusy()) {
+		for (int idx = 0; (idx<20) && IsBusy(); idx++)
+		{	// could be busy briefly while acquiring distance
 			edu.wpi.first.wpilibj.Timer.delay(.005);
-			if(IsBusy()) m.put("[LIDAR-Lite] Busy acquiring");
+			if(IsBusy()) m.put("Busy acquiring");
 			else break;
-		} // could be busy briefly while acquiring distance
+		}
 
 		/********** read distance **********/ // I2C::Read() does not work, I2C::Transaction() does not work
 		if (mLIDAR.writeBulk(distanceRegister_1st)) // tell LIDAR-Lite we want to start reading at the 1st distance register
 			{	
-				mDistanceAvailable.set(false); // assume bad reading and change if it is good
-				m.put(String.format("[LIDAR-Lite] writeBulk distance failed line %s\n", Id.__LINE__()));
+				mDistanceAvailable = false;
+				m.put(String.format("writeBulk distance failed line %s\n", Id.__LINE__()));
 			}
 		else if (mLIDAR.readOnly(distance, distance.length)) // read the 2 distance registers
 			{	
-				mDistanceAvailable.set(false); // assume bad reading and change if it is good
-				m.put(String.format("[LIDAR-Lite] readOnly distance failed line %s\n", Id.__LINE__()));
+				mDistanceAvailable = false;
+				m.put(String.format("readOnly distance failed line %s\n", Id.__LINE__()));
 			}
 		else if (IsGoodReading())
 			{ // have the 2 distance characters from the LIDAR-Lite registers so convert to
@@ -172,15 +176,23 @@ public class LIDAR_Lite {
 			// rrrrrrrr
 			// then OR (add) the 2 implied int pieces to make an implied int number.
 			// 00000000 00000000 llllllll rrrrrrrr
-			mDistanceAvailable.set(true); // good distance so indicate that
+			mDistanceAvailable = true; // good distance so indicate that
+			break; // good reading so no need to finish loop or try again
 			}
 		else
 			{
-				mDistanceAvailable.set(false); // assume bad reading and change if it is good
-				m.put(String.format("[LIDAR-Lite] Not Good Reading Distance, status register:%#2x line %s\n", mStatus[0], Id.__LINE__()));
+				mDistanceAvailable = false;
+				m.put(String.format("Not Good Reading Distance, status register:%#2x line %s\n", mStatus[0], Id.__LINE__()));
 			}
+		}
 
-		if (countIterations >= 300)
+		if(!mDistanceAvailable)
+		{
+			mDistance.set(-1); // indicate problem and no new distance even after 2 tries
+			m.put(String.format("No distance update after retry, status register:%#2x line %s\n", mStatus[0], Id.__LINE__()));
+		}
+
+		if (countIterations >= 300) // print only once in awhile
 		{	
 			m.get();
 			countIterations = 0;
@@ -217,13 +229,13 @@ public class LIDAR_Lite {
 		/********** read status **********/
 		if (mLIDAR.writeBulk(statusRegister)) // LIDAR-Lite command
 		{
-			m.put(String.format("[LIDAR-Lite] writeBulk status failed! line %s\n", Id.__LINE__()));
+			m.put(String.format("writeBulk status failed! line %s\n", Id.__LINE__()));
 		} else {
 			if (mLIDAR.readOnly(mStatus, mStatus.length)) // LIDAR-Lite command
 			{
-				m.put(String.format("[LIDAR-Lite] readOnly status failed line %s\n", Id.__LINE__()));
+				m.put(String.format("readOnly status failed line %s\n", Id.__LINE__()));
 			} else {
-				// m.put(String.format ( "[LIDAR-Lite] Status Good Reading, status register:%#2x
+				// m.put(String.format ( "Status Good Reading, status register:%#2x
 				// line %s\n", mStatus[0], Id.__LINE__());
 				return true;
 			}
@@ -237,16 +249,16 @@ public class LIDAR_Lite {
 		byte aquisitionCountRegister[] = new byte[RegisterAddressLength];
 		aquisitionCountRegister[RegisterAddressLength - 1] = (byte) Register.ACQUISITION_COUNT.value;
 
-		/********** read status **********/
+		/********** read acquisition count register **********/
 		if (mLIDAR.writeBulk(aquisitionCountRegister)) // LIDAR-Lite command
 		{
-			m.put(String.format("[LIDAR-Lite] writeBulk max acquisition count failed! line %s\n", Id.__LINE__()));
+			System.out.println(String.format("[LIDAR-Lite] writeBulk max acquisition count failed! line %s\n", Id.__LINE__()));
 		} else {
 			if (mLIDAR.readOnly(mAcquisitionCount, mAcquisitionCount.length)) // LIDAR-Lite command
 			{
-				m.put(String.format("[LIDAR-Lite] readOnly max acquisition count failed line %s\n", Id.__LINE__()));
+				System.out.println(String.format("[LIDAR-Lite] readOnly max acquisition count failed line %s\n", Id.__LINE__()));
 			} else {
-				m.put(String.format ( "[LIDAR-Lite] Aquisition Count %#2x\n", mAcquisitionCount[0]));
+				System.out.println(String.format ( "[LIDAR-Lite] Aquisition Count %#2x\n", mAcquisitionCount[0]));
 				return true;
 			}
 		}
@@ -258,16 +270,16 @@ public class LIDAR_Lite {
 		byte laserPowerRegister[] = new byte[RegisterAddressLength];
 		laserPowerRegister[RegisterAddressLength - 1] = (byte) Register.LASER_POWER.value;
 
-		/********** read status **********/
+		/********** read laser power register **********/
 		if (mLIDAR.writeBulk(laserPowerRegister)) // LIDAR-Lite command
 		{
-			m.put(String.format("[LIDAR-Lite] writeBulk laser power failed! line %s\n", Id.__LINE__()));
+			System.out.println(String.format("[LIDAR-Lite] writeBulk laser power failed! line %s\n", Id.__LINE__()));
 		} else {
 			if (mLIDAR.readOnly(mLaserPower, mLaserPower.length)) // LIDAR-Lite command
 			{
-				m.put(String.format("[LIDAR-Lite] readOnly laser power failed line %s\n", Id.__LINE__()));
+				System.out.println(String.format("[LIDAR-Lite] readOnly laser power failed line %s\n", Id.__LINE__()));
 			} else {
-				m.put(String.format ( "[LIDAR-Lite] Laser Power %#2x\n", mLaserPower[0]));
+				System.out.println(String.format ( "[LIDAR-Lite] Laser Power %#2x\n", mLaserPower[0]));
 				return true;
 			}
 		}
@@ -365,7 +377,7 @@ public class LIDAR_Lite {
 	private final double mSamplePeriod;
 	private TimerTask m_backgroundLoop;
 	private boolean mDeviceAvailable; // indicate if the Lidar is seen on the I2C bus; checked only once at startup
-	private AtomicBoolean mDistanceAvailable = new AtomicBoolean(false); // indicate that the distance was updated on the last scan
+	private boolean mDistanceAvailable = false; // indicate that the distance was updated on the last scan
 	private byte[] mStatus = new byte[Register.STATUS.count]; // status from the Lidar
 	private byte[] mAcquisitionCount = new byte[Register.ACQUISITION_COUNT.count]; // acquisition count from the Lidar
 	private byte[] mLaserPower = new byte[Register.LASER_POWER.count]; // laser power from the Lidar
@@ -394,7 +406,7 @@ public class LIDAR_Lite {
 			boolean printImmediate = false;
 			if(printImmediate)
 			{
-				System.out.println(message);
+				System.out.println("[LIDAR-Lite] " + message);
 			}
 			else
 			{
@@ -414,7 +426,7 @@ public class LIDAR_Lite {
 		
 		synchronized void get()
 		{
-			hm.forEach((key,value) -> System.out.println(value + " x " + key));      
+			hm.forEach((key,value) -> System.out.println("[LIDAR-Lite] " + value + " x " + key));      
 			hm.clear();
 		}
 	}
