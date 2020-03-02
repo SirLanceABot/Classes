@@ -8,6 +8,7 @@ package frc.robot;
 import java.util.HashMap;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import edu.wpi.first.wpilibj.I2C;
@@ -101,21 +102,22 @@ public class LIDAR_Lite {
 		return mDeviceAvailable;
 	}
 
+	public boolean IsDistanceAvailable() {
+		return mDistanceAvailable.get();
+	}
+
 	private class UpdateLIDAR extends TimerTask {
 
 		public void run() {
-			countIterations++; // count loops since printing error messages
 
 			Calculate(); // keep run() minimal - Get is where all the action is
 
-			if (countIterations >= 300)
-			{	
-				m.get();
-				countIterations = 0;}
-			}
 		}
 
 	void Calculate() {
+		//System.out.println("Start " + System.currentTimeMillis());
+		countIterations++; // count loops since printing error messages
+
 		byte distance[] = new byte[Register.DISTANCE_1_2.count]; // LIDAR-Lite command
 		byte distanceRegister_1st[] = new byte[RegisterAddressLength]; // LIDAR-Lite command
 
@@ -143,14 +145,18 @@ public class LIDAR_Lite {
 		} // could be busy briefly while acquiring distance
 
 		/********** read distance **********/ // I2C::Read() does not work, I2C::Transaction() does not work
-		if (mLIDAR.writeBulk(distanceRegister_1st)) // tell LIDAR-Lite we want to start reading at the 1st distance
-													// register
-			m.put(String.format("[LIDAR-Lite] writeBulk distance failed line %s\n", Id.__LINE__()));
-
+		if (mLIDAR.writeBulk(distanceRegister_1st)) // tell LIDAR-Lite we want to start reading at the 1st distance register
+			{	
+				mDistanceAvailable.set(false); // assume bad reading and change if it is good
+				m.put(String.format("[LIDAR-Lite] writeBulk distance failed line %s\n", Id.__LINE__()));
+			}
 		else if (mLIDAR.readOnly(distance, distance.length)) // read the 2 distance registers
-			m.put(String.format("[LIDAR-Lite] readOnly distance failed line %s\n", Id.__LINE__()));
-
-		else if (IsGoodReading()) { // have the 2 distance characters from the LIDAR-Lite registers so convert to
+			{	
+				mDistanceAvailable.set(false); // assume bad reading and change if it is good
+				m.put(String.format("[LIDAR-Lite] readOnly distance failed line %s\n", Id.__LINE__()));
+			}
+		else if (IsGoodReading())
+			{ // have the 2 distance characters from the LIDAR-Lite registers so convert to
 									// int for our use
 			mDistance.set(((distance[0] & 0xFF) << 8) | (distance[1] & 0xFF)); // update shared memory with the new
 																				// LIDAR-Lite value
@@ -166,19 +172,29 @@ public class LIDAR_Lite {
 			// rrrrrrrr
 			// then OR (add) the 2 implied int pieces to make an implied int number.
 			// 00000000 00000000 llllllll rrrrrrrr
-		}
-
+			mDistanceAvailable.set(true); // good distance so indicate that
+			}
 		else
-			m.put(String.format("[LIDAR-Lite] Not Good Reading Distance, status register:%#2x line %s\n", mStatus[0], Id.__LINE__()));
-		// mDistance is not changed if the distance read fails - old value is retained;
-		// this may not be appropriate
+			{
+				mDistanceAvailable.set(false); // assume bad reading and change if it is good
+				m.put(String.format("[LIDAR-Lite] Not Good Reading Distance, status register:%#2x line %s\n", mStatus[0], Id.__LINE__()));
+			}
+
+		if (countIterations >= 300)
+		{	
+			m.get();
+			countIterations = 0;
+		}
+		//System.out.println(" End  " + System.currentTimeMillis());
+	}
+
 	}
 
 	public int GetDistance() // return distance from LIDAR
 	{
 		int returnDistance;
 
-		if (IsWorking()) {
+		if (IsWorking() && IsDistanceAvailable()) {
 			returnDistance = mDistance.get();
 		} else {
 			returnDistance = -1;
@@ -349,6 +365,7 @@ public class LIDAR_Lite {
 	private final double mSamplePeriod;
 	private TimerTask m_backgroundLoop;
 	private boolean mDeviceAvailable; // indicate if the Lidar is seen on the I2C bus; checked only once at startup
+	private AtomicBoolean mDistanceAvailable = new AtomicBoolean(false); // indicate that the distance was updated on the last scan
 	private byte[] mStatus = new byte[Register.STATUS.count]; // status from the Lidar
 	private byte[] mAcquisitionCount = new byte[Register.ACQUISITION_COUNT.count]; // acquisition count from the Lidar
 	private byte[] mLaserPower = new byte[Register.LASER_POWER.count]; // laser power from the Lidar

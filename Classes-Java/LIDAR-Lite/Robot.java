@@ -22,7 +22,19 @@ public class Robot extends TimedRobot {
 	public void teleopPeriodic()
 	{
 		if(mLIDAR.IsWorking()) 
-		{System.out.println(mLIDAR);} // do stuff - it's good
-		else{} // do stuff - it's dead
+		{
+			if(mLIDAR.IsDistanceAvailable())
+			{
+				System.out.println("good " + mLIDAR);// do stuff - it's good
+			}
+			else
+			{
+				System.out.println("bad " + mLIDAR);// do stuff - last distance scan wasn't right (returns -1) so try it again
+			}
+		}
+		else
+		{
+			System.out.println("LIDAR-LITE DOA");// do stuff for dead LIDAR there is no hope
+		} 
 	}
 }
