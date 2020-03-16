@@ -9,7 +9,7 @@ import com.ctre.phoenix.motorcontrol.can.TalonSRX;
 import com.ctre.phoenix.motorcontrol.FeedbackDevice;
 
 public class Robot extends TimedRobot {
-  private static int sampleTime = 5; // milliseconds loop sample time period
+  private static int sampleTime = 4; // milliseconds loop sample time period
   private static TalonSRX Motor;
   private PID_ATune tuner;
   private long millisStart;
@@ -19,12 +19,12 @@ public class Robot extends TimedRobot {
   double oStep = 0.1; // + and - step size for the output perturbation (relay)
   double setpoint; // below we'll find out the rpm we get for the output signal specified above
   double RPMconversion = 1.116071428571429; // convert raw encoder to gear box shaft RPM  * (10.* 60.)/(19.2 * 7. * 4.) = 1.116071428571429
-
+  boolean tuning = true;
   StripChart myChart;
 
   Robot()
   {
-    super((double)sampleTime/1000.); // set the robot loop time
+    super(.005); // set the robot loop time
   }
 
   @Override
@@ -32,6 +32,7 @@ public class Robot extends TimedRobot {
   {
    Motor = new TalonSRX(0);
    Motor.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder, 0, 30);
+   Motor.setStatusFramePeriod(2, 5, 30);
   }
 
   @Override
@@ -43,7 +44,7 @@ public class Robot extends TimedRobot {
       try {Thread.sleep(5000);} // let motor speed stabilize
           catch (InterruptedException e) {e.printStackTrace();}
 
-    //get the (average) speed (setpoint or input) at this output
+    //get the (average) speed (setpoint or input) at this output (power level)
 
     setpoint = 0;
     for(int idx =1; idx <=20; idx++)
@@ -73,11 +74,8 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic()
   {
-    // get the rpm ==> input
-    // get the time
-    boolean tuning = true;
-    while(true)
-    {
+    if(!tuning) return;
+
       double speed = Motor.getSelectedSensorVelocity() * RPMconversion; // get the speed of the current output; raw * conversion factor = rpm
       int loopStartTime = (int)(System.currentTimeMillis() - millisStart);
       int rc = tuner.Runtime(speed, loopStartTime);
@@ -122,7 +120,7 @@ public class Robot extends TimedRobot {
       case 0:  // time step okay, process time step
         break;
       case 2:  // too fast, skipping this step
-        continue;
+        return;
       default:
         System.err.println("\n\nUnknown return from Runtime()\n\n");
       }
@@ -130,18 +128,15 @@ public class Robot extends TimedRobot {
       output = tuner.getOutput(); // get the new output
       Motor.set(ControlMode.PercentOutput, output); // set a new speed using the new output
 
-      	// time in milliseconds			// process variable - input to controller		// output from controller
+      // time in milliseconds;	process variable - input to controller;	output from controller
       System.out.print("\n" + myChart.PrintStripChart( loopStartTime,	speed, output ) );
       //System.out.println("speed " + speed + ", output " + output);
 
       if(!tuning)
       {
         Motor.set(ControlMode.PercentOutput, 0.); // stop
-        break;
       }
   }
-}
-
 }
 
        // .2 %Vbus is about 60.268 rpm is about 54 raw units  1.116071428571429

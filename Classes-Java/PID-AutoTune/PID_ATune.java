@@ -4,10 +4,11 @@ public class PID_ATune
 {
   /*
   //commonly used functions **************************************************************************
-	PID_ATune(double Input, double Output, double Setpoint,  int Millis, int ControllerDirection);
+
+    PID_ATune(double Setpoint, double Output, double oStep, DIRECTION ControllerDirection, CONTROL_TYPE ControlType, int SampleTime);
 												// * Constructor
 
-    int Runtime();						   		// * Similar to the PID Compute function, returns:
+    int Runtime(double input, int millis);		// * Similar to the PID Compute function, returns:
     											// 0 a time step toward tuning has been completed okay
     											// 1 tuning completed for better or for worse; no longer running tuning
     											// 2 called too quickly; time step has not elapsed; no action taken
@@ -18,8 +19,8 @@ public class PID_ATune
 	void SetOutputStep(double);					// * how far above and below the starting value will the output step?
 	double GetOutputStep();						//
 	
-	void SetControlType(CONTROL_TYPE); 					// * Determines if the tuning parameters returned will be PI (D=0)
-	CONTROL_TYPE GetControlType();						//   or PID.  (0=PI, 1=PID)
+	void SetControlType(CONTROL_TYPE); 			// * Determines if the tuning parameters returned will be PI (D=0)
+	CONTROL_TYPE GetControlType();				//   or PID.  (0=PI, 1=PID)
 	
 	void SetLookbackTime(int);					// * how far back are we looking to identify peaks
 	int GetLookbackTime();						//
