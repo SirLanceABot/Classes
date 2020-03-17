@@ -1,55 +1,191 @@
-package frc.robot;
+package pidtuner;
 
 public class PID_ATune
 {
   /*
+  Tunes a PID controller using the relay method
+
+  A process exists that responds to some stimulus, for example:
+  	motor rotation is a result of power applied - RPM/volts or RPS/fraction of available power
+	oven temperature is a result of power applied - degrees F/ampere
+
+  The scenario is there may be a disturbance resulting in an error or deviation between the desired 
+  process variable setpoint and the actual process variable.
+
+  This error must be corrected efficiently - as quickly as possible without too much overshoot or overdamped.
+
+  The assumption is if, for example, a process is temporarily too low it can be brought into compliance
+  faster by giving temporarily more control than its natural state.
+
+  Notice that the process variable is measured in some units and the stimulus is measured in some other units.
+
+  Tuning factors are determined by the process variable response to particular known pertubation.  Simply,
+  hit the process with a known blow and measure how it responds.
+
+  The perturbation used by this tuner is everytime the process variable falls below the Setpoint then
+  hit the process with a specified step up in control and everytime the process variable goes above the Setpoint
+  then hit the process with the same size step down in control. (Explanation assumes DIRECT control not REVERSE control.)
+
+  Tuner Produces Two Factors:
+   Ku  the Ultimate Gain (where the process STARTs to oscillate)
+   Pu  the Ultimate Time Period
+
+         4                (control perturbation amplitude)
+  Ku => -- * ------------------------------------------------------------
+		pi   (process variable amplitude resulting from the perturbation)
+
+  Pu => the time period of the oscillations forced by the alternating step perturbation. (Also known as Tu.)
+  
+  If gain applied to a process is less than Ku then approaches to the setpoint are slow and any oscillations fade.
+  (Gain is the amplification of the error. Oscillations are caused by the delay or lag in the system response to the control stimulus.)
+  If gain applied to a process is more than the Ku then the process oscillations grow.
+  The gain at Ku produces stable oscillations.
+
+  The mathematical question to answer is
+  How much of the stimulus must be applied to reduce the error in the process variable in acceptable ways?
+
+  That error can be expressed 3 ways:
+  1. error at an instant - units of the process variable
+  2. error accumulated over a longer period of time - time integrated process variable
+  3. rate of change of the error over a short period of time - time differentiated process variable
+
+  To compensate for each of the three errors multiplicative adjustment factors are applied:
+
+  1. Kp - (control stimulus units / process units)
+  error [process units] * Kp [stimulus units/process units] = stimulus [stimulus units]
+  Example: error [RPM] * Kp [volts/RPM] = adjusted power [volts]
+
+  2. Ki - (control stimulus units / process units) / time
+  time accumulated error [process units * time] * Ki [(control stimulus units / process units) / time]
+  Example: time accumulated error [RPM*seconds] * Ki [volts/RPM/second] = adjusted power [volts]
+
+  3. Kd - (control stimulus units / process units) * time
+  time rate of change of error [process units / time] * Kd [(control stimulus units / process units) * time)]
+  Example: time rate of change of error [RPM/second] * Kd [volts/RPM*second] = adjusted power [volts]
+
+  Kp, Ki, and Kd are various calculated combinations of Ku and Pu and are selected for the desired process behavior of
+  slow or fast to respond and overshoot more or less or not at all.  See comments and code near the getKp, Ki, and Kd methods.
+
+  The Ziegler-Nichols rule is a heuristic PID tuning rule that attempts to produce good values for the three PID gain parameters:
+	Kp - the controller path gain
+	Ti - the controller's integrator time constant
+	Td - the controller's derivative time constant
+  given two measured feedback loop parameters derived from measurements:
+	the period Tu of the oscillation frequency at the stability limit
+	the gain margin Ku for loop stability
+	with the goal of achieving good regulation (disturbance rejection).
+
+  The tuning method starts with the user picking a process variable setpoint and knowing the control signal
+  that produces that setpoint.  For example, say we want to tune a process at 4000 RPM (at motor shaft).
+  We need to know, also, the amount of power needed to spin the motor that fast - let's say it's determined
+  to be .76 (controller setting of the fraction of the full power avaiable).
+
+  Next a control signal perturbation must be choosen.  This number will be added and subtracted from the
+  setpoint control signal.  Pick a reasonably large number that does NOT destroy the process.  In this
+  example maybe .1 is a reasonable step up and down from the .76 power needed to maintain the Setpoint
+  (steps will oscillate rapidly between .66 and .86). Thus the amplitude of the control signal perturbation is 2*Output Step.
+
+  The tuning process is not determining the process variable at the highest and lowest control signal.  The
+  method is much more dynamic than that and is determining not just how much the process changes but how fast it changes.
+
+  The method is to apply a high control signal and watch for when the process rises above the Setpoint.  Remember that
+  transit time as the start of a cycle and immediately reduce the control signal to the low value.  Watch the process
+  variable continue to increase (from process lag) and note the time of the peak then watch it decrease (from the
+  low control signal) below the process Setpoint.  Repeatedly lower the control signal when the process goes above
+  the Setpoint and raise the control signal when the process goes below the Setpoint.
+
+  Repeat the cycle several times to acheive a steady oscillation from hitting the process high when it goes low and
+  lowering the process when it goes high.
+
+  Measure the process variable amplitude between its maximum and the minimum.
+
+  Measure the time of one period - say maximum to maximum.
+
+  The control signal perturbation is known - that was an input to the tuner - twice the step size from the Setpoint.
+  
+  Note there are other nomenclatures than Ku, Pu, kP, kI, kD.  Related you will see Kc == Kp, Tu = Pu, and Ti and Td
+  related to kI and kD
+
+  Tuner Setpoint and input are the process variable units
+  Output and oStep (Output step) are the control signal units that effect the process variable
+  Time input is milliseconds
+
+  Result methods retain the input units but return seconds - not milliseconds (see the division by 1000 in the code)
+ 
+  Kp, Ki, Kd may be tuned using different units than the controller uses but that can lead to some confusion
+  as the parameters must have the unts converted.
+
+  For example a CTRE Talon motor controller will perform a PID controller using Kp, Ki, Kd with units of:
+	encoder edges per motor shaft rotation per 100 ms and the time step is ms
+  If the tuner was given gear box output shaft RPM and seconds, then a conversion to the Talon required units must be done.
+  The example prorgam shows this.  Better yet, just tune with the native units of the controller.
+   
   //commonly used functions **************************************************************************
 
     PID_ATune(double Setpoint, double Output, double oStep, DIRECTION ControllerDirection, CONTROL_TYPE ControlType, int SampleTime);
 												// * Constructor
-
+												// Sets the process variable setpoint and the control signal Output that produces that
+												// setpoint
+												// oStep is the perturbation of the Output control signal that sets up the oscillation 
+												// of the process variable
     int Runtime(double input, int millis);		// * Similar to the PID Compute function, returns:
     											// 0 a time step toward tuning has been completed okay
     											// 1 tuning completed for better or for worse; no longer running tuning
     											// 2 called too quickly; time step has not elapsed; no action taken
-    											// 3 a peak was found and tuning parameters are available; additional tuning attempts will be made
+												// 3 a peak was found and tuning parameters are available; additional tuning attempts
+												//  will be made
 
     void Cancel();								// * Stops the AutoTune
 	
-	void SetOutputStep(double);					// * how far above and below the starting value will the output step?
+	void SetOutputStep(double);					// * how far above and below the starting value will the output step
+												// same as the constructor
 	double GetOutputStep();						//
 	
 	void SetControlType(CONTROL_TYPE); 			// * Determines if the tuning parameters returned will be PI (D=0)
+												// same as the constructor
 	CONTROL_TYPE GetControlType();				//   or PID.  (0=PI, 1=PID)
 	
 	void SetLookbackTime(int);					// * how far back are we looking to identify peaks
+												// default
 	int GetLookbackTime();						//
 	
 	void SetSampleTime(int);					// * millisec
+												// same as the constructor
 
 	void SetNoiseBand(double);					// * the autotune will ignore signal chatter smaller than this value
+												// default
 	double GetNoiseBand();						//   this should be accurately set
-	
-	double GetKp();								// * once autotune is complete (Runtime returns 1 or 3),
-	double GetKi();								//   these functions contain the computed tuning parameters.
-	double GetKd();								//
-	double GetKu();								//
-	double GetPu();								//
-	double GetPeak_1();							// * time last maximum found
-	double GetPeak_2();							// * time 2nd to the last maximum found
+
 	void SetControllerDirection(DIRECTION);	 	// * Sets the Direction, or "Action" of the controller. DIRECT
 										  	  	//   means the output will increase when error is positive. REVERSE
 										  	  	//   means the opposite.  it's very unlikely that this will be needed
 										  	  	//   once it is set in the constructor.
+
+// * once autotune is complete (Runtime returns 1 or 3),these functions contain the computed tuning parameters.	
+	double GetKp();								// Kp input units
+	double GetKi();								// Ki input units / second
+	double GetKd();								// Kd input units * second
+	double GetKu();								// * Ultimate Gain - input units
+	double GetPu();								// * Ultimate Period - seconds
+	double GetPeak_1();							// * time last maximum found - seconds
+	double GetPeak_2();							// * time 2nd to the last maximum found - seconds
+
   private:
     void FinishUp();
     void SetKuPu();
     */
 
-	// control types:
+/**********************/
+
+	// PID or PI
 	public enum CONTROL_TYPE {PI_CONTROL, PID_CONTROL};
+
+	// Control to process ratio positive means direct and negative means reversed.
+	// The PID will either be connected to a DIRECT acting process (increasing Output leads
+ 	// to  increasing Input) or a REVERSE acting process (increasing Output leads to decreasing Input.)
 	public enum DIRECTION {DIRECT, REVERSE};
 
+/**********************/
 	private boolean isMax, isMin;
 	private double setpoint;
 	private double oStep;
@@ -229,19 +365,42 @@ Control type Kp     Ki       Kd
 P            0.50Ku -        -
 PI           0.45Ku 1.2Ku/Pu -
 PID          0.60Ku 2Ku/Pu   Ku*Pu/8
+
+
+Rule Name	Tuning Parameters
+Classic Ziegler-Nichols	Kp = 0.6 Ku     Ti = 0.5 Tu     Td = 0.125 Tu
+Pessen Integral Rule	Kp = 0.7 Ku     Ti = 0.4 Tu     Td = 0.15 Tu
+Some Overshoot	Kp = 0.33 Ku    Ti = 0.5 Tu     Td = 0.33 Tu
+No Overshoot	Kp = 0.2 Ku     Ti = 0.5 Tu     Td = 0.33 Tu
+http://www.mstarlabs.com/control/znrule.html
+
+https://en.wikipedia.org/wiki/Ziegler-Nichols_method
+Ziegler–Nichols method
+Control Type				Kp      Ti	    Td	    Ki	        Kd
+P		     				0.5Ku	–    	–	    –       	–
+PI	 			   		    0.45Ku	Tu/1.2	–   	0.54Ku/Tu	–
+PD    						0.8Ku	–	    Tu/8	–       	KuTu/10
+classic PID    				0.6Ku   Tu/2    Tu/8	1.2Ku/Tu    3KuTu/40}
+Pessen Integral Rule	    7Ku/10 	2Tu/5 	3Tu/20 	1.75Ku/Tu 	21KuTu/200
+some overshoot	 			Ku/3	Tu/2	Tu/3	0.666Ku/Tu 	KuTu/9
+no overshoot				Ku/5 	Tu/2	Tu/3	(2/5)Ku/Tu 	KuTu/15}
+The ultimate gain Ku is defined as 1/M, where M = the amplitude ratio, Ki=Kp/Ti and Kd=KpTd.
+
+For more sophisticated version of this tuner:
+https://github.com/t0mpr1c3/Arduino-PID-AutoTune-Library/blob/master/PID_AutoTune_v0/PID_AutoTune_v0.cpp
 */
 
-public double GetKp()
+public double GetKp() // input units
 {
 	return controlType==CONTROL_TYPE.PID_CONTROL ? 0.6 * Ku : 0.4 * Ku;
 }
 
-public double GetKi()
+public double GetKi() // input units / second
 {
 	return controlType==CONTROL_TYPE.PID_CONTROL ? 1.2*Ku / Pu : 0.48 * Ku / Pu;  // Ki = Kc/Ti
 }
 
-public double GetKd()
+public double GetKd() // input unit * second
 {
 	return controlType==CONTROL_TYPE.PID_CONTROL ? 0.075 * Ku * Pu : 0;  //Kd = Kc * Td
 }
@@ -266,7 +425,7 @@ public double GetOutputStep()
 	return oStep;
 }
 
-public void SetControlType(CONTROL_TYPE Type) // 0=PI_CONTROL, 1=PID_CONTROL
+public void SetControlType(CONTROL_TYPE Type)
 {
 	controlType = Type;
 }
@@ -317,9 +476,9 @@ public int GetLookbackTime()
 	return nLookBack * sampleTime;
 }
 /* SetControllerDirection(...)*************************************************
- * The PID will either be connected to a DIRECT acting process (+Output leads
- * to +Input) or a REVERSE acting process(+Output leads to -Input.)  We need to
- * know which one, because otherwise we may increase the output when we should
+ * The PID will either be connected to a DIRECT acting process (increasing Output leads
+ * to  increasing Input) or a REVERSE acting process (increasing Output leads to decreasing Input.)
+ * We need to know which one, because otherwise we may increase the output when we should
  * be decreasing.  This is called from the constructor.
  ******************************************************************************/
 public void SetControllerDirection(DIRECTION Direction)
