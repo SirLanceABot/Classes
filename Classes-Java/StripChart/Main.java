@@ -1,4 +1,4 @@
-package StripChart;
+package stripchart;
 
 public class Main
 {
