@@ -1,4 +1,4 @@
-package StripChart;
+package stripchart;
 
 /*
 StripChart myChart(
@@ -29,15 +29,15 @@ public class StripChart
 		this.Strip_Maximum_2 = aStrip_Maximum_2;
 		Strip_Maximum_1 = -Double.MAX_VALUE;
 		Strip_Minimum_1 = Double.MAX_VALUE;
-		System.out.print("[Time msecs] [PV chart min, PV value, PV chart max, PV chart] [Controller chart, Controller chart min, Controller value, Controller chart max]\n");
+		System.out.print("[Time msecs] [PV chart min, value, max] ~~~~~~~~~ [Controller chart, min, value, max]\n");
 	}
 
 	// millisecond time value (argument 1)
 	// left and right chart data (arguments 2 and 3)
 	public final String PrintStripChart(long Time, double Strip_Data_1, double Strip_Data_2)
 	{
-		StringBuilder Strip_Graph_1 = new StringBuilder(" ..........+.......... ");
-		StringBuilder Strip_Graph_2 = new StringBuilder(" ..........+.......... ");
+		StringBuilder Strip_Graph_1 = new StringBuilder(" . . . . . + . . . . . ");
+		StringBuilder Strip_Graph_2 = new StringBuilder(" . . . . . + . . . . . ");
 		int Strip_Normalized_1;
 		int Strip_Normalized_2;
 		double Strip_Span_1;
@@ -75,7 +75,7 @@ public class StripChart
 		}
 		else
 		{
-			Strip_Graph_1.setCharAt( 11 + Strip_Normalized_1, 'O');
+			Strip_Graph_1.setCharAt( 11 + Strip_Normalized_1, '|');
 		}
 		// end graphing Strip_Data_1 =====================================================================
 
@@ -93,13 +93,13 @@ public class StripChart
 		}
 		else
 		{
-			Strip_Graph_2.setCharAt( 11 + Strip_Normalized_2, 'O');
+			Strip_Graph_2.setCharAt( 11 + Strip_Normalized_2, '|');
 		}
 		// end graphing Strip_Data_2 ====================================================================
 
 		// print the graphs =======================================================================
 
-		return	String.format("%7d %8.3f %8.3f %8.3f \t%s %s %8.3f %8.3f %8.3f",
+		return	String.format("%7d %8.3f %8.3f %8.3f \t %s~%s %8.3f %8.3f %8.3f",
 				Time, Strip_Center_1 - (Strip_Span_1 / 2.0), Strip_Data_1, Strip_Center_1 + (Strip_Span_1 / 2.0),
 				Strip_Graph_1, Strip_Graph_2, Strip_Minimum_2, Strip_Data_2, Strip_Maximum_2);
 
