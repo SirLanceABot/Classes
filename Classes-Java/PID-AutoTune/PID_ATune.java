@@ -32,7 +32,7 @@ public class PID_ATune
 
          4                (control perturbation amplitude)
   Ku => -- * ------------------------------------------------------------
-		pi   (process variable amplitude resulting from the perturbation)
+        pi   (process variable amplitude resulting from the perturbation)
 
   Pu => the time period of the oscillations forced by the alternating step perturbation. (Also known as Tu.)
   
@@ -119,7 +119,21 @@ public class PID_ATune
 	encoder edges per motor shaft rotation per 100 ms and the time step is ms
   If the tuner was given gear box output shaft RPM and seconds, then a conversion to the Talon required units must be done.
   The example prorgam shows this.  Better yet, just tune with the native units of the controller.
-   
+  
+  Comments on the use of Feed Forward (Kf or other nomenclature)
+  
+  Tuning the PID controller with this method does not involve feed forward but that control should be provided.
+  
+  Feed forward is of two forms:
+    
+    Immediate reaction to some event that can be sensed, for example, an oven heater can be turned on immediately when the
+    door is opened (sensed by a switch) without having to wait for the process variable, temperature, to be sensed as dropping.
+
+    The bulk of the control signal to hold a Setpoint, for example, if 40% power is required to hold the Setpoint RPM of a
+    motor then the feed forward should be used to provide most but no more than about 80% or 90% of the signal - 32% to 36%
+    power in this example.  The Ki integrated error control will hold a setpoint without feed forward but that large accumulated
+    error is hard (takes a long time) to unwind and the process will overshoot while the error is worked off to a new setpoint.
+    
   //commonly used functions **************************************************************************
 
     PID_ATune(double Setpoint, double Output, double oStep, DIRECTION ControllerDirection, CONTROL_TYPE ControlType, int SampleTime);
