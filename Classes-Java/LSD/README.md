@@ -24,7 +24,7 @@ How this version was made
 ======================
 RKT copied the GitHub repository LSD from user anfractuosity
 
-Add make some minor changes:
-    * add public to several field variables (instead of making Getters)
-    * add color and dashes to the line segment display - better to see the generated lines
+Make some minor changes
+* add public to several field variables (instead of making Getters)
+* add color and dashes to the line segment display - better to see the generated lines
     
