@@ -26,5 +26,6 @@ RKT copied the GitHub repository LSD from user anfractuosity
 
 Make some minor changes
 * add public to several field variables (instead of making Getters)
-* add color and dashes to the line segment display - better to see the generated lines
+* add color and dashes to highlight the line segment display on the original image
+* add draw line segments in an OpenCV window
     
