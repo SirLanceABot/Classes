@@ -8,7 +8,7 @@
 
   The intention is to use a window of old data (including the newest value) to form a least squares linear
   fitting line that is used to predict what the newest value would be based on (mostly) old data. That
-  predicted value based on history can be compared to the actual value.
+  predicted value based on history can be compared to the actual value. Beware the filter overshoots step changes.
 
   The least squares formula for a straight line is derived in many math sources and not repeated here.
   The formula for a straight line with two parameters a and b:
