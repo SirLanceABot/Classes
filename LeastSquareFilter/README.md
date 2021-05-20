@@ -1,6 +1,7 @@
  Compute the Savitzky-Golay least squares filtering coefficients assuming sampling at a fixed time interval
   
   Based on ideas and output verified with:
+  
   https://gregstanleyandassociates.com/whitepapers/FaultDiagnosis/Filtering/LeastSquares-Filter/leastsquares-filter.htm
   
   which has a good explanation of usage of this and many other filters.
@@ -34,17 +35,30 @@
   simplify calculations and the oldest data is at -(n-1)/2 and the newest at (n-1)/2.
 
   calculated coefficients for oldest data y[0] to newest data y[n-1]
+  
 2  0.00000  1.00000
+
 3 -0.16667  0.33333  0.83333
+
+
 4 -0.20000  0.10000  0.40000  0.70000
+
 5 -0.20000  0.00000  0.20000  0.40000  0.60000
+
 6 -0.19048 -0.04762  0.09524  0.23810  0.38095  0.52381
+
 7 -0.17857 -0.07143  0.03571  0.14286  0.25000  0.35714  0.46429
+
 8 -0.16667 -0.08333  0.00000  0.08333  0.16667  0.25000  0.33333  0.41667
+
 9 -0.15556 -0.08889 -0.02222  0.04444  0.11111  0.17778  0.24444  0.31111  0.37778
+
 10 -0.14545 -0.09091 -0.03636  0.01818  0.07273  0.12727  0.18182  0.23636  0.29091  0.34545
+
 11 -0.13636 -0.09091 -0.04545  0.00000  0.04545  0.09091  0.13636  0.18182  0.22727  0.27273  0.31818
+
 12 -0.12821 -0.08974 -0.05128 -0.01282  0.02564  0.06410  0.10256  0.14103  0.17949  0.21795  0.25641  0.29487
+
 13 -0.12088 -0.08791 -0.05495 -0.02198  0.01099  0.04396  0.07692  0.10989  0.14286  0.17582  0.20879  0.24176  0.27473
 
 Example:
