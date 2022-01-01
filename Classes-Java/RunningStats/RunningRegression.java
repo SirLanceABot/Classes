@@ -1,14 +1,6 @@
 package TestJava;
 
-//RunningStats.cpp
-
-///#include "RunningStats.h"
-///#include <cmath>
-///#include <vector>
-
-//http://www.johndcook.com/running_regression.html
-
-// RunningRegression.h
+// from http://www.johndcook.com/running_regression.html
 
 /*
 Computing linear regression in one pass
@@ -20,25 +12,18 @@ You can also combine two RunningRegression objects by using the + and += operato
 accrue data on several different threads in parallel then add their RunningRegression objects together.
  */
 
-///#include "RunningStats.h"
+/*  EXAMPLE
+		RunningRegression aLine = new RunningRegression(); // construct regression object
+
+		Loop:
+			System.out.printf("%d, %f\n",i, xm); // print data point - assumes xm was set above here
+			aLine.Push(xm, 1.); // add data point to regression routine - this example assumes data are flat line at 1 (y = 1.) otherwise enter a y value
+
+		System.out.print(aLine); // print regression
+ */
 
 public class RunningRegression
 {
-
-	//http://www.johndcook.com/running_regression.html
-
-	// RunningRegression.h
-
-	/*
-	Computing linear regression in one pass
-	The RunningRegression class is the analog of the RunningStats class described here and uses that class.
-	You add pairs of (x, y) values by using the Push. At any point along the way you can call the Slope,
-	Intercept, or Correlation functions to see the current value of these statistics.
-
-	You can also combine two RunningRegression objects by using the add and copyFrom methods. For example, you might
-	accrue data on several different threads in parallel then add their RunningRegression objects together.
-	 */
-
 	public RunningRegression()
 	{
 		Clear();
@@ -83,7 +68,7 @@ public class RunningRegression
 		return S_xy / ((n - 1) * t);
 	}
 	public String toString()
-	{	// for example:	System.out.print("Running Regression"); System.out.println(rr)
+	{
 		String content;
 		content =
 				String.format("\nNumDataValues: %d\n", NumDataValues()) +

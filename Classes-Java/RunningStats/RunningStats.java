@@ -1,10 +1,6 @@
 package TestJava;
 
-//This file includes both the Running Stats and Running Regression routines
-
-// http://www.johndcook.com/skewness_kurtosis.html
-
-//RunningStats.h
+// from http://www.johndcook.com/skewness_kurtosis.html
 
 /*
 Computing skewness and kurtosis in one pass
@@ -29,74 +25,22 @@ References:
 1.Wikipedia
 2.Timothy B. Terriberry. Computing Higher-Order Moments Online.
 3.Philippe P�bay. SANDIA REPORT SAND2008-6212 (2008). Formulas for Robust, One-Pass Parallel Computation
- of Co- variances and Arbitrary-Order Statistical Moments.
+ of Covariances and Arbitrary-Order Statistical Moments.
 
  */
 
 /*  EXAMPLE
-		RunningStats sumit; // construct statistics object
-		RunningRegression aLine; // construct regression object
+		RunningStats sumit = new RunningStats(); // construct statistics object
 
-		System.out.printf("%d, %f\n",i, xm); // print data point - assumes xm was set above here
-		sumit.Push(xm); // add data point to statistical routine
-		aLine.Push(xm, 1.); // add data point to regression routine - this example assumes data are flat line at 1 (y = 1.) otherwise enter a y value
+		Loop:
+			System.out.printf("%d, %f\n",i, xm); // print data point - assumes xm was set above here
+			sumit.Push(xm); // add data point to statistical routine
 
-		System.out.print("Raw Signal"); // print statistics
 		System.out.print(sumit); // print statistics
-		System.out.print("raw signal regression line vs 1."); // print regression
-		System.out.print(aline); // print regression
  */
 
 public class RunningStats
 {
-
-	//This file includes both the Running Stats and Running Regression routines
-
-	// http://www.johndcook.com/skewness_kurtosis.html
-
-	//RunningStats.h
-
-	/*
-	Computing skewness and kurtosis in one pass
-	The code is an extension of the method of Knuth and Welford for computing standard deviation
-	in one pass through the data. It computes skewness and kurtosis as well with a similar interface.
-	In addition to only requiring one pass through the data, the algorithm is numerically stable and accurate.
-
-	To use the code, create a RunningStats object and use the Push method to insert data values. After
-	accruing your data, you can obtain sample statistics by calling one of these methods:
-
-	�Mean
-	�Variance
-	�StandardDeviation
-	�Skewness
-	�Kurtosis
-	You can also combine two RunningStats objects by using the + and += operators. For example, you might
-	accrue data on several different threads in parallel then add their RunningStats objects together to
-	create a single object with the state that it would have had if all the data had been accumulated by it
-	alone.
-	References:
-
-	1.Wikipedia
-	2.Timothy B. Terriberry. Computing Higher-Order Moments Online.
-	3.Philippe P�bay. SANDIA REPORT SAND2008-6212 (2008). Formulas for Robust, One-Pass Parallel Computation
-	 of Co- variances and Arbitrary-Order Statistical Moments.
-
-	 */
-
-	/*  EXAMPLE
-			#include <stats_running.h>
-
-			RunningStats sumit;        // construct statistics object
-			RunningRegression aLine;   // construct regression object
-
-			fprintf(stdout, "%d, %f\n",i, xm);  // print data point - assumes xm was set above here
-			sumit.Push(xm);            // add data point to statistical routine
-			aLine.Push(xm, 1.);        // add data point to regression routine - this example assumes data are flat line at 1 (y = 1.) otherwise enter a y value
-
-			sumit.Print(stdout, "Raw Signal");  // print statistics
-			aLine.Print(stdout, "raw signal regression line vs 1.");  // print regression
-	 */
-
 	public RunningStats()
 	{
 		Clear();
@@ -176,7 +120,7 @@ public class RunningStats
 		return mindata;
 	}
 	public String toString()
-	{	// for example:	System.out.print("Running Stats"); System.out.println(rs)
+	{
 		String content;
 		content =
 				String.format("\nNumDataValues:     %d\n", NumDataValues()) +
