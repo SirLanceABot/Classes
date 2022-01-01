@@ -2,14 +2,6 @@ package TestJava;
 
 public class RunningLeastSquares
 {
-
-	// y = Ax^B 	
-
-	// y = A + Blogx
-
-	// y = Ae^Bx
-
-
 	/*
 	 3 non-linear least squares fits:
 
