@@ -31,9 +31,6 @@ public class TBHController implements Sendable {
   /**
    * Creates a new Take-Back-Half controller.
    *
-   * <p>Always ensure that your motor controllers are set to "coast" before attempting to control
-   * them with a Take-Back-Half controller.
-   *
    * @param gain to correct the error
    * @param tolerance Tolerance for {@link #atSetpoint() atSetpoint}.
    * Tolerance is not used for this TBH controller and is provide as a convenience if the user
@@ -53,8 +50,6 @@ public class TBHController implements Sendable {
    * Creates a new Take-Back-Half controller.
    * Using default Gain and Tolerance
    *
-   * <p>Always ensure that your motor controllers are set to "coast" before attempting to control
-   * them with a Take-Back-Half controller.
    */
   public TBHController() {
     this(defaultGain, defaultTolerance); // something to get you started
@@ -164,9 +159,6 @@ public class TBHController implements Sendable {
 
   /**
    * Returns the calculated control output.
-   *
-   * <p>Always ensure that your motor controllers are set to "coast" before attempting to control
-   * them with a Take-Back-Half controller.
    *
    * @param measurement The most recent measurement of the process variable.
    * @return The calculated motor input (controller output).
