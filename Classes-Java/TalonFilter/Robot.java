@@ -226,7 +226,7 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
       // printSpeed = (controlSignal, speed) -> System.out.println("%VBus " + controlSignal + ", velocity (native units) " + speed);
       printSpeed = (controlSignal, speed) -> {
         SmartDashboard.putNumber("speed", speed);
-        if(controlSignal == 0. || (speed < 24_000.*controlSignal && speed > -24_000.*controlSignal)) // ignore the severe transients (be sure to use the max possible speed)
+        if(speed <= 24_000.*controlSignal && speed >= -24_000.*controlSignal) // ignore the severe transients (be sure to use the max possible speed)
           {
             flip = -flip;
          
@@ -272,9 +272,7 @@ public void sweepVelocity()
     // set the period
     filterPeriod = vmp[selectPeriod].value;
     SmartDashboard.putNumber("filter period", filterPeriod);
-    System.out.println("period " + vmp[selectPeriod]);
     if (flywheelMotor.configVelocityMeasurementPeriod(vmp[selectPeriod], TIMEOUT_MS) != ErrorCode.OK) System.out.println("config meas period");
-
     
   double speed;
       
@@ -284,6 +282,7 @@ public void sweepVelocity()
     // set the window
     filterWindow = ws[selectWindow];
     SmartDashboard.putNumber("filter window", filterWindow);
+    System.out.println("period " + vmp[selectPeriod]);
     System.out.println("__window " + filterWindow + " ms");
     if (flywheelMotor.configVelocityMeasurementWindow(filterWindow, TIMEOUT_MS) != ErrorCode.OK) System.out.println("config meas window");
     
@@ -300,16 +299,19 @@ public void sweepVelocity()
         } catch (InterruptedException e) {
           e.printStackTrace();
         }
-        return;
+        return; // goes back to main loop and restarts from the beginning. Could change that to resume where left off.
       }
   
       // set the velocity
       setFlywheelControlSignal.accept(controlSignal);
 
       // run velocity for awhile sampling and printing it often
+
+      double[] data = new double[250]; // save last 250 points for fiveNumberSummary and IRQ
       for (int count = 1; count <= 350; count++)
       {
         speed = getFlywheelSpeed.get();
+        if(count >= 101) data[count-101] = speed;
         printSpeed.accept(controlSignal, speed);
         try {
           Thread.sleep(5L);
@@ -317,11 +319,14 @@ public void sweepVelocity()
           e.printStackTrace();
         }
       }
+      double[] fns = IQR.fiveNumberSummary(data);
+      System.out.printf("%nmin(q0)=%f q1=%f median(q2)=%f q3=%f max(q4)=%f IQR=%f%n",
+                fns[0], fns[1], fns[2], fns[3], fns[4], fns[3]-fns[1]);
     }
 
     while((speed = getFlywheelSpeed.get()) > 0)
     {
-      System.out.println("waiting for motor to stop moving " + speed);
+      // System.out.println("waiting for motor to stop moving " + speed);
       setFlywheelControlSignal.accept(0.); // stop motor at end of sweep
       printSpeed.accept(0., speed);
       try {
