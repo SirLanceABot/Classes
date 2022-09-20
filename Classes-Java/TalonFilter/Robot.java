@@ -89,6 +89,7 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
   private DoubleLogEntry Q2fnsLogEntry;
   private DoubleLogEntry Q3fnsLogEntry;
   private DoubleLogEntry Q4fnsLogEntry;
+  private DoubleLogEntry IQRLogEntry;
 
   Robot()
   {
@@ -126,6 +127,7 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
     Q2fnsLogEntry = new DoubleLogEntry(log, talonFilterName+"Q2 fns", "velocities");
     Q3fnsLogEntry = new DoubleLogEntry(log, talonFilterName+"Q3 fns", "velocities");
     Q4fnsLogEntry = new DoubleLogEntry(log, talonFilterName+"Q4 fns", "velocities");
+    IQRLogEntry = new DoubleLogEntry(log, talonFilterName+"IQR", "velocities");
     filterPeriodEntry = new DoubleLogEntry(log, talonFilterName+"Period", "ms");    
     filterWindowEntry = new DoubleLogEntry(log, talonFilterName+"Window", "ms");    
     controlSignalEntry = new DoubleLogEntry(log, talonFilterName+"controlSignal", "%VBus");
@@ -221,7 +223,9 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
       flywheelMotor = new TalonFX(flywheelMotorPort);
       System.out.println("[Talon] set factory default " + flywheelMotor.configFactoryDefault(TIMEOUT_MS));
       flywheelMotor.setInverted(false);
+      if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("set inverted error " + flywheelMotor.getLastError());
       flywheelMotor.setNeutralMode(NeutralMode.Coast);
+      if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("set neutral mode error " + flywheelMotor.getLastError());
       System.out.println("[Talon] set vel period " + flywheelMotor.configVelocityMeasurementPeriod(SensorVelocityMeasPeriod.Period_25Ms, TIMEOUT_MS));
       System.out.println("[Talon] set vel window " + flywheelMotor.configVelocityMeasurementWindow(1, TIMEOUT_MS));
       FeedbackDevice sensor = FeedbackDevice.IntegratedSensor;
@@ -230,8 +234,15 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
       System.out.println("[Talon] set status 2 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_2_Feedback0, sampleTime, TIMEOUT_MS));
       System.out.println("[Talon] set status 13 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_13_Base_PIDF0, sampleTime, TIMEOUT_MS)); // PID error
       flywheelMotor.setSensorPhase(false);
-      flywheelMotor.setSelectedSensorPosition(0);
+      if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("set sensor phase error " + flywheelMotor.getLastError());
+      flywheelMotor.setSelectedSensorPosition(0, pidIdx, TIMEOUT_MS);
+      if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("set sensor position error " + flywheelMotor.getLastError());
 
+      // get and display the motor parms
+      TalonFXConfiguration allConfigs = new TalonFXConfiguration();
+      if (flywheelMotor.getAllConfigs(allConfigs, TIMEOUT_MS) != ErrorCode.OK) System.out.println("get config error" + flywheelMotor.getLastError());
+      System.out.println("[Talon] flywheel motor configs\n" + allConfigs);
+    
       setFlywheelControlSignal = (speed) -> 
       {
         flywheelMotor.set(TalonFXControlMode.PercentOutput, speed);
@@ -245,8 +256,8 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
         return speed;
       };
 
-      // printSpeed = (controlSignal, speed) -> System.out.println("%VBus " + controlSignal + ", velocity (native units) " + speed);
-      printSpeed = (controlSignal, speed) -> {
+      printSpeed = (controlSignal, speed) ->
+      {
         SmartDashboard.putNumber("speed", speed);
         if((speed <= 24_000.*controlSignal && speed >= -24_000.*controlSignal) // ignore the severe transients (be sure to use the max possible speed)
          || (controlSignal == 0 && speed <= 24_000. && speed >= -24_000.))
@@ -262,12 +273,8 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
             SmartDashboard.putNumber("%VBus", controlSignal);
             SmartDashboard.updateValues();
           }
-        };
+      };
 
-      // get and display the motor parms
-      TalonFXConfiguration allConfigs = new TalonFXConfiguration();
-      if (flywheelMotor.getAllConfigs(allConfigs, TIMEOUT_MS) != ErrorCode.OK) System.out.println("get config error" + flywheelMotor.getLastError());
-      System.out.println("[Talon] flywheel motor configs\n" + allConfigs);
     }
 
 public void sweepVelocity()
@@ -287,10 +294,9 @@ public void sweepVelocity()
     int[] ws = {1,2,4,8,16,32}; // rolling average Window Size ms. Bigger is smoother and more lag.
 
   // for all measurement periods (1 ms to 100ms)
-  // sweep velocity from 0 to +1 step 0.05 in about 100 seconds. Hold each velocity for some seconds
+  // sweep velocity from 0 to +1 step 0.05. Hold each velocity for some seconds
 
   for (int selectPeriod = 0; selectPeriod < vmp.length; selectPeriod++)
-  // for (int selectPeriod = 2; selectPeriod <= 3; selectPeriod++)
   {
     // set the period
     filterPeriod = vmp[selectPeriod].value;
@@ -300,7 +306,6 @@ public void sweepVelocity()
   double speed;
       
   for (int selectWindow = 0; selectWindow < ws.length; selectWindow++)
-  // for (int selectWindow = 0; selectWindow <= 1; selectWindow++)
   {
     // set the window
     filterWindow = ws[selectWindow];
@@ -312,7 +317,15 @@ public void sweepVelocity()
     // sweep the velocities
     for(double controlSignal = 0.; controlSignal < 1.01; controlSignal += 0.1)
     {
-      if (isDisabled()) // check for stop signal from user
+      // check for stop signal from user
+      // User can "disable" with Driver Station or "enter" but that only disables the motors and actuators
+      // and does not break the "loop". This method keeps running just the motors stopped spinning
+      // unless we check for the disable signal ourself and stop this method.
+      // Thus "disable" does disable motors and actuators but is merely a suggestion to the program
+      // that must check for disabled if it wants to do something on disable.
+      // Note that since the method continues to run, if the user re-enables, the motors will start immediately
+      // in the state the method currently is in. There was NO suspended animation or PAUSE unless programed.
+      if (isDisabled())
       {
         setFlywheelControlSignal.accept(0.); // stop motor at end of sweep
         printSpeed.accept(0., 0.);
@@ -322,7 +335,8 @@ public void sweepVelocity()
         } catch (InterruptedException e) {
           e.printStackTrace();
         }
-        return; // goes back to main loop and restarts from the beginning. Could change that to resume where left off.
+        return; // goes back to main loop that would restart the sweepVelocities from the beginning.
+                // robotInit is not rerun unless the user restarts robot code.
       }
   
       // set the velocity
@@ -330,7 +344,7 @@ public void sweepVelocity()
 
       // run velocity for awhile sampling and printing it often
 
-      double[] data = new double[250]; // save last 250 points for fiveNumberSummary and IRQ
+      double[] data = new double[250]; // save last 250 points for fiveNumberSummary and IQR
       for (int count = 1; count <= 350; count++)
       {
         speed = getFlywheelSpeed.get();
@@ -349,6 +363,7 @@ public void sweepVelocity()
       Q2fnsLogEntry.append(fns[2]);
       Q3fnsLogEntry.append(fns[3]);
       Q4fnsLogEntry.append(fns[4]);
+      IQRLogEntry.append(fns[3]-fns[1]);
       filterPeriodEntry.append(filterPeriod);
       filterWindowEntry.append(filterWindow);
       controlSignalEntry.append(controlSignal);
