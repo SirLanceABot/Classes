@@ -181,6 +181,11 @@ public class IQR {
 
         return tot / values.length;
     }
+
+    static String dump(double[] fns) {
+        return String.format("min(q0)=%f q1=%f median(q2)=%f q3=%f max(q4)=%f IQR=%f",
+                fns[0], fns[1], fns[2], fns[3], fns[4], fns[3]-fns[1]);
+    }
 }
 /* output
 
