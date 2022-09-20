@@ -1,4 +1,5 @@
 // DISPLAY TalonFX (Falcon 500) velocity native units versus time for selected %VBus, filterWindow size, and filterPeriod length
+// If using the sweepVelocity method it's all automatic and does all the combinations for the parametric analysis
 
 // Copy of CTRE method help
   /**
@@ -33,6 +34,9 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import edu.wpi.first.hal.HAL;
+import edu.wpi.first.util.datalog.DataLog;
+import edu.wpi.first.util.datalog.DoubleLogEntry;
+import edu.wpi.first.wpilibj.DataLogManager;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.livewindow.LiveWindow;
@@ -77,6 +81,15 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
 
   private double flip = -1.;
 
+  private DoubleLogEntry filterPeriodEntry;
+  private DoubleLogEntry filterWindowEntry;
+  private DoubleLogEntry controlSignalEntry;    
+  private DoubleLogEntry Q0fnsLogEntry; // could use DoubleArrayLogEntry but the elements are semi-colon delimited which is hard to use in Excel
+  private DoubleLogEntry Q1fnsLogEntry;
+  private DoubleLogEntry Q2fnsLogEntry;
+  private DoubleLogEntry Q3fnsLogEntry;
+  private DoubleLogEntry Q4fnsLogEntry;
+
   Robot()
   {
     LiveWindow.disableAllTelemetry(); // don't waste time on stuff we don't need
@@ -94,11 +107,7 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
 
     // Loop forever, calling the appropriate functions
     while (true) {
-      // loopFunc();
-
-      // sweep velocities through periods
-      sweepVelocity();
-
+      loopFunc();
     }
 
   }
@@ -109,6 +118,17 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
   }
 
   public void robotInit() {
+
+    DataLog log = DataLogManager.getLog();
+    String talonFilterName = new String("/TalonFilter/"); // make a prefix tree structure for the ultrasonic data
+    Q0fnsLogEntry = new DoubleLogEntry(log, talonFilterName+"Q0 fns", "velocities");
+    Q1fnsLogEntry = new DoubleLogEntry(log, talonFilterName+"Q1 fns", "velocities");
+    Q2fnsLogEntry = new DoubleLogEntry(log, talonFilterName+"Q2 fns", "velocities");
+    Q3fnsLogEntry = new DoubleLogEntry(log, talonFilterName+"Q3 fns", "velocities");
+    Q4fnsLogEntry = new DoubleLogEntry(log, talonFilterName+"Q4 fns", "velocities");
+    filterPeriodEntry = new DoubleLogEntry(log, talonFilterName+"Period", "ms");    
+    filterWindowEntry = new DoubleLogEntry(log, talonFilterName+"Window", "ms");    
+    controlSignalEntry = new DoubleLogEntry(log, talonFilterName+"controlSignal", "%VBus");
 
     configFlywheel();
 
@@ -130,14 +150,14 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
         DriverStation.inDisabled(true);
         disabled();
         DriverStation.inDisabled(false);
-        /*while*/ if (isDisabled()) {
+        while (isDisabled()) {
           DriverStation.waitForData();
         }
       } else if (isAutonomous()) {
         DriverStation.inAutonomous(true);
         autonomous();
         DriverStation.inAutonomous(false);
-        /*while*/ if (isAutonomousEnabled()) {
+        while (isAutonomousEnabled()) {
           DriverStation.waitForData();
         }
       } else if (isTest()) {
@@ -146,23 +166,25 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
         DriverStation.inTest(true);
         test();
         DriverStation.inTest(false);
-        /*while*/ if (isTest() && isEnabled()) {
+        while (isTest() && isEnabled()) {
           DriverStation.waitForData();
         }
         LiveWindow.setEnabled(false);
         Shuffleboard.disableActuatorWidgets();
       } else {
         DriverStation.inTeleop(true);
-        teleop();
+        // teleop();
+        sweepVelocity();// sweep velocities through periods
         DriverStation.inTeleop(false);
-        /*while*/ if (isTeleopEnabled()) {
+        while (isTeleopEnabled()) {
           DriverStation.waitForData();
-          // DriverStation.waitForData(0.1);// () (0) (seconds)
-          // DriverStation.isNewControlData();
         }
       }
     }
   }
+  // DriverStation.waitForData(0.1);// () (0) (seconds)
+  // DriverStation.isNewControlData();
+
   public void teleop() {
   
     System.out.println("teleop entered");
@@ -226,7 +248,8 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
       // printSpeed = (controlSignal, speed) -> System.out.println("%VBus " + controlSignal + ", velocity (native units) " + speed);
       printSpeed = (controlSignal, speed) -> {
         SmartDashboard.putNumber("speed", speed);
-        if(speed <= 24_000.*controlSignal && speed >= -24_000.*controlSignal) // ignore the severe transients (be sure to use the max possible speed)
+        if((speed <= 24_000.*controlSignal && speed >= -24_000.*controlSignal) // ignore the severe transients (be sure to use the max possible speed)
+         || (controlSignal == 0 && speed <= 24_000. && speed >= -24_000.))
           {
             flip = -flip;
          
@@ -243,7 +266,7 @@ import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
 
       // get and display the motor parms
       TalonFXConfiguration allConfigs = new TalonFXConfiguration();
-      if (flywheelMotor.getAllConfigs(allConfigs, TIMEOUT_MS) != ErrorCode.OK) System.out.println("get config error");
+      if (flywheelMotor.getAllConfigs(allConfigs, TIMEOUT_MS) != ErrorCode.OK) System.out.println("get config error" + flywheelMotor.getLastError());
       System.out.println("[Talon] flywheel motor configs\n" + allConfigs);
     }
 
@@ -272,7 +295,7 @@ public void sweepVelocity()
     // set the period
     filterPeriod = vmp[selectPeriod].value;
     SmartDashboard.putNumber("filter period", filterPeriod);
-    if (flywheelMotor.configVelocityMeasurementPeriod(vmp[selectPeriod], TIMEOUT_MS) != ErrorCode.OK) System.out.println("config meas period");
+    if (flywheelMotor.configVelocityMeasurementPeriod(vmp[selectPeriod], TIMEOUT_MS) != ErrorCode.OK) System.out.println("config meas period" + flywheelMotor.getLastError());
     
   double speed;
       
@@ -284,7 +307,7 @@ public void sweepVelocity()
     SmartDashboard.putNumber("filter window", filterWindow);
     System.out.println("period " + vmp[selectPeriod]);
     System.out.println("__window " + filterWindow + " ms");
-    if (flywheelMotor.configVelocityMeasurementWindow(filterWindow, TIMEOUT_MS) != ErrorCode.OK) System.out.println("config meas window");
+    if (flywheelMotor.configVelocityMeasurementWindow(filterWindow, TIMEOUT_MS) != ErrorCode.OK) System.out.println("config meas window" + flywheelMotor.getLastError());
     
     // sweep the velocities
     for(double controlSignal = 0.; controlSignal < 1.01; controlSignal += 0.1)
@@ -320,8 +343,15 @@ public void sweepVelocity()
         }
       }
       double[] fns = IQR.fiveNumberSummary(data);
-      System.out.printf("%nmin(q0)=%f q1=%f median(q2)=%f q3=%f max(q4)=%f IQR=%f%n",
-                fns[0], fns[1], fns[2], fns[3], fns[4], fns[3]-fns[1]);
+      System.out.println(IQR.dump(fns));
+      Q0fnsLogEntry.append(fns[0]);
+      Q1fnsLogEntry.append(fns[1]);
+      Q2fnsLogEntry.append(fns[2]);
+      Q3fnsLogEntry.append(fns[3]);
+      Q4fnsLogEntry.append(fns[4]);
+      filterPeriodEntry.append(filterPeriod);
+      filterWindowEntry.append(filterWindow);
+      controlSignalEntry.append(controlSignal);
     }
 
     while((speed = getFlywheelSpeed.get()) > 0)
