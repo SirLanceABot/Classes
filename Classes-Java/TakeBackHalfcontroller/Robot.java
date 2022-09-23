@@ -5,8 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import edu.wpi.first.math.controller.BangBangController;
-import edu.wpi.first.math.filter.MedianFilter;
-import edu.wpi.first.wpilibj.AnalogInput;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.livewindow.LiveWindow;
@@ -22,13 +20,10 @@ import com.revrobotics.CANSparkMaxLowLevel.PeriodicFrame;
  * with an ultrasonic sensor to reach and maintain a set distance from an object.
  */
 public class Robot extends TimedRobot {
-  // speed output value to hold
-  private static final double kHoldSpeed = 100.0; // motor speed rpm
+ 
+  private static final double kHoldSpeed = 100.0; // speed to hold (velocity setpoint)
 
   private static final int kLeftMotorPort = 3; // SparkMax CAN id
-
-  // median filter to smooth - discard outliers; filters over 5 samples
-  // private final MedianFilter m_filter = new MedianFilter(5);
 
   private final BangBangController m_bangbangController = new BangBangController();
 
@@ -37,9 +32,7 @@ public class Robot extends TimedRobot {
 
   private static final CANSparkMax leftMotor = new CANSparkMax(kLeftMotorPort, com.revrobotics.CANSparkMaxLowLevel.MotorType.kBrushless);
   private RelativeEncoder m_leftEncoder = leftMotor.getEncoder();
-  
-  private double maxSpeed = .1; // throttled by my maxSpeed factor 'cuz not on big battery
-
+ 
   private Timer timer = new Timer();
 
   @Override
@@ -62,6 +55,7 @@ public class Robot extends TimedRobot {
     System.out.println(System.getenv()); // get all environmentals
     System.out.println(System.getenv("serialnum")); // get the roboRIO serial number
 
+    // get the roboRIO comment is illustrative and has nothing to do with the Bang-Bang or TBH controllers
     //// start get roboRIO comment
     final Path commentPath = Path.of("/etc/machine-info");
     try {  
@@ -102,17 +96,18 @@ public class Robot extends TimedRobot {
     m_bangbangController.setTolerance(10.); // give it a little leeway; this is in units of setpoint so should update if setpoint changed
     m_bangbangController.setSetpoint(kHoldSpeed);
 
-    m_tbhController.setSetpoint(kHoldSpeed, kHoldSpeed*gain/maxSpeed); // good first guess of the "feed forward"; throttled by my maxSpeed 'cuz not on battery
+    m_tbhController.setSetpoint(kHoldSpeed, kHoldSpeed*gain); // good first guess of the "feed forward"
     }
     // bang bang is all (below setpoint it's a 1.0) or nothing (above setpoint it's a 0.0)
     double bangbangOutput = m_bangbangController.calculate(speed);
     System.out.println("BangBang " + speed + " " + bangbangOutput + " " + m_leftEncoder.getVelocity());
+    double maxSpeed = 1.0;
     // leftMotor.set(bangbangOutput == 0.? 0.0 : maxSpeed);
     // if(leftMotor.getLastError() != REVLibError.kOk) System.out.print("set " + leftMotor.getLastError());
 
     // use TBH take back half controller
     var TBHoutput = m_tbhController.calculate(speed);
-    leftMotor.set(TBHoutput * maxSpeed); // throttled by my maxSpeed 'cuz not on battery
+    leftMotor.set(TBHoutput);
     if(leftMotor.getLastError() != REVLibError.kOk) System.out.print("set " + leftMotor.getLastError());
     System.out.println("TBH " + speed + " " + TBHoutput + " " + position);
   }
