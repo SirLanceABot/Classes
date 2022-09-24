@@ -305,7 +305,7 @@ public void sweepVelocity()
     
   double speed;
       
-  for (int selectWindow =0; selectWindow < ws.length; selectWindow++)
+  for (int selectWindow = 0; selectWindow < ws.length; selectWindow++)
   {
     // set the window
     filterWindow = ws[selectWindow];
