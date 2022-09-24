@@ -291,7 +291,7 @@ public void sweepVelocity()
       SensorVelocityMeasPeriod.Period_100Ms
       };
 
-    int[] ws = {1,2,4,8,16,32}; // rolling average Window Size ms. Bigger is smoother and more lag.
+    int[] ws = {1,2,4,8,16,32,64}; // rolling average Window Size ms. Bigger is smoother and more lag.
 
   // for all measurement periods (1 ms to 100ms)
   // sweep velocity from 0 to +1 step 0.05. Hold each velocity for some seconds
@@ -305,7 +305,7 @@ public void sweepVelocity()
     
   double speed;
       
-  for (int selectWindow = 0; selectWindow < ws.length; selectWindow++)
+  for (int selectWindow =0; selectWindow < ws.length; selectWindow++)
   {
     // set the window
     filterWindow = ws[selectWindow];
