@@ -1,10 +1,12 @@
 /** Sample PIDF controller in one CAN TalonFX motor controller using Integrated Sensor
  * 
- * All the PIDF constants and filter times are built into the code and are okay for no load.
+ * All the PIDF constants and filter times are built into the code and are okay for no load
+ * on a junk (rebuilt but damaged) motor.
  * The intention is they can be changed in the Phoenix Tuner to tune a real device.
  * 
  * The setpoint speed is entered on the SmartDashboard as "velocity set (native units)"
  * It is the only input to the program.
+ * Press TAB to have the input value sent (ENTER works but then the robot is disabled)
  */
 
 package frc.robot;
@@ -13,10 +15,10 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.ctre.phoenix.ErrorCode;
-import com.ctre.phoenix.motorcontrol.FeedbackDevice;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.StatusFrameEnhanced;
 import com.ctre.phoenix.motorcontrol.TalonFXControlMode;
+import com.ctre.phoenix.motorcontrol.TalonFXFeedbackDevice;
 import com.ctre.phoenix.motorcontrol.can.TalonFX;
 import com.ctre.phoenix.motorcontrol.can.TalonFXConfiguration;
 import com.ctre.phoenix.sensors.SensorVelocityMeasPeriod;
@@ -36,7 +38,7 @@ public class Robot extends TimedRobot {
   Supplier<Double> getSpeedError;
   
   double speed = 0.; //initial speed to run and display on SmartDashboard
-  // It seemed that sometimes a previous value from the SmartDashboard is used.
+  // It seemed that sometimes a previous value from the SmartDashboard is used (race condition?).
   // This code tries hard to prevent but not sure it's perfect or what the issue was.
   
   Robot()
@@ -54,12 +56,12 @@ public class Robot extends TimedRobot {
     final int pidIdx = 0; // Talon primary closed loop control (or none)
     final boolean invert = false;
     final int filterWindow = 1; // ms
-    final SensorVelocityMeasPeriod filterPeriod = SensorVelocityMeasPeriod.Period_5Ms;
-    final int sampleTime = 10; // ms
-    final double kP = 0.1;
-    final double kI = 0.;
-    final double kD = 0.;
-    final double kF = 0.044;
+    final SensorVelocityMeasPeriod filterPeriod = SensorVelocityMeasPeriod.Period_5Ms; // 10ms and 20ms had less fluctuation
+    final int sampleTime = 15; // ms
+    final double kP = 0.16; // good around 8000 nu, 0.1 works for the entire velocity range
+    final double kI = 0.; // no effect then suddenly bad
+    final double kD = 0.; // no effect then suddenly bad
+    final double kF = 0.046; // very good around 8000 nu and okay for the entire velocity range with a little more error creeping in
 
     configFlywheel(flywheelMotorPort, pidIdx, invert, filterWindow, filterPeriod, sampleTime, kP, kI, kD, kF);
 
@@ -104,6 +106,7 @@ public class Robot extends TimedRobot {
 
       System.out.println("[Talon] set status 2 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_2_Feedback0, sampleTime, TIMEOUT_MS));
       System.out.println("[Talon] set status 13 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_13_Base_PIDF0, sampleTime, TIMEOUT_MS)); // PID error
+      //System.out.println("[Talon] set status 10 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_10_MotionMagic, sampleTime, TIMEOUT_MS)); // this may or may not be useful
 
       flywheelMotor.setInverted(invert);
       System.out.println("[Talon] set inverted " + flywheelMotor.getLastError());
@@ -116,13 +119,21 @@ public class Robot extends TimedRobot {
      
       // get the factory defaults for some setting as defined by this Java API - may be different than Phoenix Tuner
 			TalonFXConfiguration configs = new TalonFXConfiguration();
+
       // change the ones that we need to
 
-      // configs.voltageCompSaturation = 11.; // potentially useful to limit somewhat and enable tuning at realistic voltage and for reproducibility but not now
+      // voltage compensation seems potentially useful but not for sure to enable tuning at realistic voltage and for reproducibility
+      // kF has to be increased by the amount of voltage reduction in the compensation. Check kP, too.
+      // double voltageCompensation = 11.; // if used, don't do this; pass this value in the parameter list
+      // configs.voltageCompSaturation = voltageCompensation;
       // flywheelMotor.enableVoltageCompensation(true);
 
-      configs.nominalOutputReverse = invert ? -1. : 0.;
-      configs.primaryPID.selectedFeedbackSensor = FeedbackDevice.IntegratedSensor; // TalonFXFeedbackDevice doesn't work for some reason
+      // one direction only assumed and forced - these work for both inverted or not
+      configs.peakOutputReverse = 0.;
+      configs.peakOutputForward = 1.;
+
+      configs.primaryPID.selectedFeedbackSensor = TalonFXFeedbackDevice.IntegratedSensor.toFeedbackDevice();
+
       configs.velocityMeasurementWindow = filterWindow;
       configs.velocityMeasurementPeriod = filterPeriod;
       configs.slot0.kP = kP;
@@ -161,13 +172,15 @@ public class Robot extends TimedRobot {
       // method to display stuff
       printSpeed = () ->
       {
-        var nativeToRPM = 10. * 60. / 2048.; // 10 .1sec/sec   60 secs/min    2048 encoder ticks/rev for Integrated Sensor
+        var nativeToRPM = 10. * 60. / 2048.; // 10 .1sec/sec   60 secs/min   rev/2048 encoder ticks for Integrated Sensor
         SmartDashboard.putNumber("velocity measured (native units)", getFlywheelSpeed.get());
         SmartDashboard.putNumber("velocity measured (RPM)", getFlywheelSpeed.get() * nativeToRPM);
         SmartDashboard.putNumber("error (native units)", getSpeedError.get());
         SmartDashboard.putNumber("error (RPM)", getSpeedError.get() * nativeToRPM);
-        SmartDashboard.putNumber("kF tentative", 1023.*flywheelMotor.getMotorOutputPercent()/getFlywheelSpeed.get());
+        SmartDashboard.putNumber("kF tentative", 1023. * flywheelMotor.getMotorOutputPercent() / getFlywheelSpeed.get()); // 1023 talon throttle unit / 100%VBus
+        SmartDashboard.putNumber("%VBus", flywheelMotor.getMotorOutputPercent());
         SmartDashboard.putNumber("bus voltage", flywheelMotor.getBusVoltage());
+        SmartDashboard.updateValues();
       };
     }
 }
