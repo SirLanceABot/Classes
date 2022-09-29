@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.ctre.phoenix.ErrorCode;
+import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.StatusFrameEnhanced;
 import com.ctre.phoenix.motorcontrol.TalonFXControlMode;
@@ -66,6 +67,59 @@ public class Robot extends TimedRobot {
     configFlywheel(flywheelMotorPort, pidIdx, invert, filterWindow, filterPeriod, sampleTime, kP, kI, kD, kF);
 
     Timer.delay(0.2); // let everything settle - Phoenix starting and SmartDashboard updating
+  }
+
+  // calculate kF variables
+  int count;
+  double kfSpeed;
+  double averageSpeed;
+  double averagePctVoltage;
+
+  @Override
+  public void autonomousInit()
+  {
+    count = 0;
+    kfSpeed = 0.;
+    averageSpeed = 0.;
+    averagePctVoltage = 0.;
+  }
+
+  /**
+   * print values related to kF calculation
+   * collect data at 10 %VBus settings from plus the 0 point
+   * skip 50 iterations to let speed settle
+   * average values from the next 50 iterations
+   * Set %VBus differs from the %VBus retrieved from the TalonFX for unknown reasons
+   * 
+   */
+  @Override
+  public void autonomousPeriodic()
+  {
+    if(kfSpeed > 1.01)
+    {
+      flywheelMotor.set(ControlMode.PercentOutput, 0.);
+      return;
+    }
+
+    count++;
+
+    flywheelMotor.set(ControlMode.PercentOutput, kfSpeed);
+
+    if(count <= 50) return; // skip 50 iterations
+    // then gather data for 50
+    averageSpeed += getFlywheelSpeed.get();
+    averagePctVoltage += flywheelMotor.getMotorOutputPercent();
+
+    if(count < 100) return;
+    // at iteration 100 print the smooth data and step up to next %VBus
+    averageSpeed /= 50.;
+    averagePctVoltage /= 50.;
+    System.out.format("%5.2f %5.2f %5.2f %10.7f %7.4f\n",
+          kfSpeed, averageSpeed, averagePctVoltage, averagePctVoltage/averageSpeed, 1023.*averagePctVoltage/averageSpeed);
+    kfSpeed += 0.1;
+    count = 0;
+    averageSpeed = 0.;
+    averagePctVoltage = 0.;
   }
 
   @Override
@@ -279,4 +333,16 @@ Java TalonFX API default configuration:
 .customParam0 = 0;
 .customParam1 = 0;
 */
-
+/*
+0.00 0.00 0.00 NaN NaN
+0.10 1507.20 0.06 0.0000415 0.0425
+0.20 3956.80 0.17 0.0000420 0.0430
+0.30 6374.40 0.27 0.0000423 0.0433
+0.40 8826.00 0.38 0.0000425 0.0435
+0.50 11197.20 0.48 0.0000428 0.0438
+0.60 13615.20 0.58 0.0000428 0.0438
+0.70 15993.60 0.69 0.0000430 0.0440
+0.80 18366.40 0.79 0.0000431 0.0440
+0.90 20771.20 0.90 0.0000431 0.0441
+1.00 22871.20 1.00 0.0000437 0.0447
+*/
