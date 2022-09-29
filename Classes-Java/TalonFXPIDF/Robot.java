@@ -15,7 +15,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.ctre.phoenix.ErrorCode;
-import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.StatusFrameEnhanced;
 import com.ctre.phoenix.motorcontrol.TalonFXControlMode;
@@ -97,13 +96,13 @@ public class Robot extends TimedRobot {
   {
     if(kfSpeed > 1.01)
     {
-      flywheelMotor.set(ControlMode.PercentOutput, 0.);
+      flywheelMotor.set(TalonFXControlMode.PercentOutput, 0.);
       return;
     }
 
     count++;
 
-    flywheelMotor.set(ControlMode.PercentOutput, kfSpeed);
+    flywheelMotor.set(TalonFXControlMode.PercentOutput, kfSpeed);
 
     if(count <= 50) return; // skip 50 iterations
     // then gather data for 50
