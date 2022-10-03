@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.ctre.phoenix.ErrorCode;
+import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.StatusFrameEnhanced;
 import com.ctre.phoenix.motorcontrol.TalonFXControlMode;
@@ -31,7 +32,7 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 public class Robot extends TimedRobot {
 
   TalonFX flywheelMotor;
-  private static final int TIMEOUT_MS = 30; // milliseconds TalonFX command timeout limit
+  private static final int TIMEOUT_MS = 50; // milliseconds TalonFX command timeout limit
   Runnable printSpeed;
   Consumer<Double> setFlywheelSpeed;
   Supplier<Double> getFlywheelSpeed;
@@ -53,6 +54,7 @@ public class Robot extends TimedRobot {
     SmartDashboard.updateValues();
 
     final int flywheelMotorPort = 0;
+    final double voltageCompensation = 10.;
     final int pidIdx = 0; // Talon primary closed loop control (or none)
     final boolean invert = false;
     final int filterWindow = 1; // ms
@@ -63,7 +65,7 @@ public class Robot extends TimedRobot {
     final double kD = 0.; // no effect then suddenly bad
     final double kF = 0.046; // very good around 8000 nu and okay for the entire velocity range with a little more error creeping in
 
-    configFlywheel(flywheelMotorPort, pidIdx, invert, filterWindow, filterPeriod, sampleTime, kP, kI, kD, kF);
+    configFlywheel(flywheelMotorPort, voltageCompensation, pidIdx, invert, filterWindow, filterPeriod, sampleTime, kP, kI, kD, kF);
 
     Timer.delay(0.2); // let everything settle - Phoenix starting and SmartDashboard updating
   }
@@ -96,13 +98,13 @@ public class Robot extends TimedRobot {
   {
     if(kfSpeed > 1.01)
     {
-      flywheelMotor.set(TalonFXControlMode.PercentOutput, 0.);
+      flywheelMotor.set(ControlMode.PercentOutput, 0.);
       return;
     }
 
     count++;
 
-    flywheelMotor.set(TalonFXControlMode.PercentOutput, kfSpeed);
+    flywheelMotor.set(ControlMode.PercentOutput, kfSpeed);
 
     if(count <= 50) return; // skip 50 iterations
     // then gather data for 50
@@ -139,6 +141,7 @@ public class Robot extends TimedRobot {
   /** Configure the Talon motor controller
    * 
    * @param flywheelMotorPort CAN
+   * @param voltageCompensation limit motor input - 0. disables voltage compensation
    * @param pidIdx PID index 0 is either 0 or none
    * @param invert (motor reversed)
    * @param filterWindow ms
@@ -149,7 +152,7 @@ public class Robot extends TimedRobot {
    * @param kD
    * @param kF
    */
-  void configFlywheel(int flywheelMotorPort, int pidIdx,  boolean invert,
+  void configFlywheel(int flywheelMotorPort, double voltageCompensation, int pidIdx,  boolean invert,
                       int filterWindow, SensorVelocityMeasPeriod filterPeriod, int sampleTime,
                       double kP, double kI, double kD, double kF)
   {
@@ -157,6 +160,8 @@ public class Robot extends TimedRobot {
 
       System.out.println("[Talon] clear faults " + flywheelMotor.clearStickyFaults(TIMEOUT_MS));
 
+      System.out.println("[Talon] set default " + flywheelMotor.configFactoryDefault(TIMEOUT_MS));
+      
       System.out.println("[Talon] set status 2 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_2_Feedback0, sampleTime, TIMEOUT_MS));
       System.out.println("[Talon] set status 13 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_13_Base_PIDF0, sampleTime, TIMEOUT_MS)); // PID error
       //System.out.println("[Talon] set status 10 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_10_MotionMagic, sampleTime, TIMEOUT_MS)); // this may or may not be useful
@@ -177,10 +182,8 @@ public class Robot extends TimedRobot {
 
       // voltage compensation seems potentially useful but not for sure to enable tuning at realistic voltage and for reproducibility
       // kF has to be increased by the amount of voltage reduction in the compensation. Check kP, too.
-      // double voltageCompensation = 11.; // if used, don't do this; pass this value in the parameter list
-      // configs.voltageCompSaturation = voltageCompensation;
-      // flywheelMotor.enableVoltageCompensation(true);
-
+      configs.voltageCompSaturation = voltageCompensation;
+      
       // one direction only assumed and forced - these work for both inverted or not
       configs.peakOutputReverse = 0.;
       configs.peakOutputForward = 1.;
@@ -194,10 +197,19 @@ public class Robot extends TimedRobot {
       configs.slot0.kD = kD;
       configs.slot0.kF = kF;
 
-			System.out.println("[Talon] set configs " + flywheelMotor.configAllSettings(configs)); // send the new config back
+			System.out.println("[Talon] set configs " + flywheelMotor.configAllSettings(configs, TIMEOUT_MS)); // send the new config back
 
       System.out.println("[Talon] get configs " + flywheelMotor.getAllConfigs(configs, TIMEOUT_MS)); // read them back
       System.out.println("[Talon] configuration:\n" + configs); // print them
+
+      if(voltageCompensation != 0.)
+      {
+        flywheelMotor.enableVoltageCompensation(true);
+        if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("[Talon] set enable compensation error " + flywheelMotor.getLastError());
+      }
+
+      System.out.println("[Talon] compensation " + flywheelMotor.isVoltageCompensationEnabled());
+      if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("[Talon] compensation error " + flywheelMotor.getLastError());
 
       //
       // methods for others to access the TalonFX motor controller
