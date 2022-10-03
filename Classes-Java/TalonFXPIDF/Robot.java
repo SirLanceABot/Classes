@@ -1,5 +1,11 @@
 /** Sample PIDF controller in one CAN TalonFX motor controller using Integrated Sensor
  * 
+ * Assumes a single rotational direction such as shooter flywheel
+ * 
+ * SET THE PARAMETERS AS YOU WISH
+ * MOST PARAMETERS ARE MOST EASILY CHANGED USING THE PHOENIX TUNER
+ * 
+ * IN TELEOP MODE
  * All the PIDF constants and filter times are built into the code and are okay for no load
  * on a junk (rebuilt but damaged) motor.
  * The intention is they can be changed in the Phoenix Tuner to tune a real device.
@@ -7,6 +13,10 @@
  * The setpoint speed is entered on the SmartDashboard as "velocity set (native units)"
  * It is the only input to the program.
  * Press TAB to have the input value sent (ENTER works but then the robot is disabled)
+ * 
+ * IN AUTO MODE
+ * programs runs fully automatically to display the calculated kF
+ * voltage compensation is included in the calculation as selected by the user
  */
 
 package frc.robot;
@@ -27,8 +37,26 @@ import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.livewindow.LiveWindow;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.PowerDistribution;
 
 public class Robot extends TimedRobot {
+
+/**
+ * User settable parameters
+ */
+  final int flywheelMotorPort = 0;
+  final double voltageCompensation = 10.; // if using voltageCompensation, kF should be determined with it on or kFcompensation = kFbattery * battery/voltageCompensation
+  final int pidIdx = 0; // Talon primary closed loop control (or none)
+  final boolean invert = false;
+  final int filterWindow = 1; // ms
+  final SensorVelocityMeasPeriod filterPeriod = SensorVelocityMeasPeriod.Period_5Ms; // 10ms and 20ms had less fluctuation
+  final int sampleTime = 15; // ms
+  final double kP = 0.1; // works for the entire velocity range
+  final double kI = 0.; // no effect then suddenly bad
+  final double kD = 0.; // no effect then suddenly bad
+  // final double kF = 0.046; // good around 8000 nu and okay for the entire velocity range with a little more error creeping in (~12.3v battery)
+  final double kF = 0.0555; //okay for the entire velocity range with a little more error creeping in (10v compensation)
+
 
   TalonFX flywheelMotor;
   private static final int TIMEOUT_MS = 50; // milliseconds TalonFX command timeout limit
@@ -49,20 +77,12 @@ public class Robot extends TimedRobot {
   @Override
   public void robotInit() {
     
+    PowerDistribution pd = new PowerDistribution();
+    pd.clearStickyFaults();
+    pd.close();
+
     SmartDashboard.putNumber("velocity set (native units)", speed);
     SmartDashboard.updateValues();
-
-    final int flywheelMotorPort = 0;
-    final double voltageCompensation = 10.;
-    final int pidIdx = 0; // Talon primary closed loop control (or none)
-    final boolean invert = false;
-    final int filterWindow = 1; // ms
-    final SensorVelocityMeasPeriod filterPeriod = SensorVelocityMeasPeriod.Period_5Ms; // 10ms and 20ms had less fluctuation
-    final int sampleTime = 15; // ms
-    final double kP = 0.16; // good around 8000 nu, 0.1 works for the entire velocity range
-    final double kI = 0.; // no effect then suddenly bad
-    final double kD = 0.; // no effect then suddenly bad
-    final double kF = 0.046; // very good around 8000 nu and okay for the entire velocity range with a little more error creeping in
 
     configFlywheel(flywheelMotorPort, voltageCompensation, pidIdx, invert, filterWindow, filterPeriod, sampleTime, kP, kI, kD, kF);
 
@@ -74,6 +94,7 @@ public class Robot extends TimedRobot {
   double kfSpeed;
   double averageSpeed;
   double averagePctVoltage;
+  double averageBusVoltage;
 
   @Override
   public void autonomousInit()
@@ -82,6 +103,7 @@ public class Robot extends TimedRobot {
     kfSpeed = 0.;
     averageSpeed = 0.;
     averagePctVoltage = 0.;
+    averageBusVoltage = 0.;
   }
 
   /**
@@ -89,8 +111,6 @@ public class Robot extends TimedRobot {
    * collect data at 10 %VBus settings from plus the 0 point
    * skip 50 iterations to let speed settle
    * average values from the next 50 iterations
-   * Set %VBus differs from the %VBus retrieved from the TalonFX for unknown reasons
-   * 
    */
   @Override
   public void autonomousPeriodic()
@@ -109,13 +129,19 @@ public class Robot extends TimedRobot {
     // then gather data for 50
     averageSpeed += getFlywheelSpeed.get();
     averagePctVoltage += flywheelMotor.getMotorOutputPercent();
+    averageBusVoltage += flywheelMotor.getBusVoltage();
 
     if(count < 100) return;
     // at iteration 100 print the smooth data and step up to next %VBus
     averageSpeed /= 50.;
     averagePctVoltage /= 50.;
-    System.out.format("%5.2f %5.2f %5.2f %10.7f %7.4f\n",
-          kfSpeed, averageSpeed, averagePctVoltage, averagePctVoltage/averageSpeed, 1023.*averagePctVoltage/averageSpeed);
+    averageBusVoltage /= 50.;
+
+    var kFtemp = averagePctVoltage/averageSpeed * (flywheelMotor.isVoltageCompensationEnabled() ? averageBusVoltage / voltageCompensation : 1.); // voltage compensation correction factor
+
+    System.out.format("%5.2f, %5.2f, %5.2f, %5.2f, %10.7f, kF=%7.4f\n",
+          kfSpeed, averageSpeed, averagePctVoltage, averageBusVoltage, kFtemp, kFtemp * 1023.); // 1023 throttle units per 100%VBus
+
     kfSpeed += 0.1;
     count = 0;
     averageSpeed = 0.;
@@ -182,7 +208,7 @@ public class Robot extends TimedRobot {
       // voltage compensation seems potentially useful but not for sure to enable tuning at realistic voltage and for reproducibility
       // kF has to be increased by the amount of voltage reduction in the compensation. Check kP, too.
       configs.voltageCompSaturation = voltageCompensation;
-      
+
       // one direction only assumed and forced - these work for both inverted or not
       configs.peakOutputReverse = 0.;
       configs.peakOutputForward = 1.;
@@ -241,7 +267,9 @@ public class Robot extends TimedRobot {
         SmartDashboard.putNumber("velocity measured (RPM)", getFlywheelSpeed.get() * nativeToRPM);
         SmartDashboard.putNumber("error (native units)", getSpeedError.get());
         SmartDashboard.putNumber("error (RPM)", getSpeedError.get() * nativeToRPM);
-        SmartDashboard.putNumber("kF tentative", 1023. * flywheelMotor.getMotorOutputPercent() / getFlywheelSpeed.get()); // 1023 talon throttle unit / 100%VBus
+        SmartDashboard.putNumber("kF tentative", 1023. * // 1023 talon throttle unit / 100%VBus
+            (flywheelMotor.isVoltageCompensationEnabled() ? flywheelMotor.getBusVoltage() / voltageCompensation : 1.) * // voltage compensation correction factor
+             flywheelMotor.getMotorOutputPercent() / getFlywheelSpeed.get() );
         SmartDashboard.putNumber("%VBus", flywheelMotor.getMotorOutputPercent());
         SmartDashboard.putNumber("bus voltage", flywheelMotor.getBusVoltage());
         SmartDashboard.updateValues();
@@ -249,7 +277,18 @@ public class Robot extends TimedRobot {
     }
 }
 /*
-Java TalonFX API default configuration:
+********** Robot program starting **********
+NT: server: client CONNECTED: 10.42.37.5 port 58826
+[Talon] clear faults OK
+[Talon] set default OK
+[Talon] set status 2 OK
+[Talon] set status 13 OK
+[Talon] set inverted OK
+[Talon] set neutral mode OK
+[Talon] set sensor position OK
+[Talon] set configs OK
+[Talon] get configs OK
+[Talon] configuration:
 .supplyCurrLimit = Limiting is disabled.;
 .statorCurrLimit = Limiting is disabled.;
 .motorCommutation = Trapezoidal;
@@ -273,22 +312,22 @@ Java TalonFX API default configuration:
 .openloopRamp = 0.0;
 .closedloopRamp = 0.0;
 .peakOutputForward = 1.0;
-.peakOutputReverse = -1.0;
+.peakOutputReverse = 0.0;
 .nominalOutputForward = 0.0;
 .nominalOutputReverse = 0.0;
-.neutralDeadband = 0.04;
-.voltageCompSaturation = 0.0;
+.neutralDeadband = 0.04007820136852395;
+.voltageCompSaturation = 10.0;
 .voltageMeasurementFilter = 32;
-.velocityMeasurementPeriod = SensorVelocityMeasPeriod.Period_100Ms;
-.velocityMeasurementWindow = 64;
+.velocityMeasurementPeriod = SensorVelocityMeasPeriod.Period_5Ms;
+.velocityMeasurementWindow = 1;
 .forwardSoftLimitThreshold = 0.0;
 .reverseSoftLimitThreshold = 0.0;
 .forwardSoftLimitEnable = false;
 .reverseSoftLimitEnable = false;
-.slot0.kP = 0.0;
+.slot0.kP = 0.09999990463256836;
 .slot0.kI = 0.0;
 .slot0.kD = 0.0;
-.slot0.kF = 0.0;
+.slot0.kF = 0.05549979209899902;
 .slot0.integralZone = 0.0;
 .slot0.allowableClosedloopError = 0.0;
 .slot0.maxIntegralAccumulator = 0.0;
@@ -337,22 +376,38 @@ Java TalonFX API default configuration:
 .clearPositionOnQuadIdx = false;
 .limitSwitchDisableNeutralOnLOS = false;
 .softLimitDisableNeutralOnLOS = false;
-.pulseWidthPeriod_EdgesPerRot = 1;
-.pulseWidthPeriod_FilterWindowSz = 1;
+.pulseWidthPeriod_EdgesPerRot = 0;
+.pulseWidthPeriod_FilterWindowSz = 0;
 .trajectoryInterpolationEnable = true;
 .customParam0 = 0;
 .customParam1 = 0;
-*/
-/*
-0.00 0.00 0.00 NaN NaN
-0.10 1507.20 0.06 0.0000415 0.0425
-0.20 3956.80 0.17 0.0000420 0.0430
-0.30 6374.40 0.27 0.0000423 0.0433
-0.40 8826.00 0.38 0.0000425 0.0435
-0.50 11197.20 0.48 0.0000428 0.0438
-0.60 13615.20 0.58 0.0000428 0.0438
-0.70 15993.60 0.69 0.0000430 0.0440
-0.80 18366.40 0.79 0.0000431 0.0440
-0.90 20771.20 0.90 0.0000431 0.0441
-1.00 22871.20 1.00 0.0000437 0.0447
+[Talon] compensation true
+********** Robot program startup complete **********
+Default disabledPeriodic() method... Override me!
+Default robotPeriodic() method... Override me!
+[phoenix] Library initialization is complete.
+[phoenix-diagnostics] Server 1.9.0 (Jan 4 2022,20:28:13) running on port: 1250
+Loop time of 0.02s overrun
+Warning at edu.wpi.first.wpilibj.IterativeRobotBase.printLoopOverrunMessage(IterativeRobotBase.java:359): Loop time of 0.02s overrun
+0.00, 0.00, 0.00, 7.40, NaN, kF= NaN
+SmartDashboard.updateValues(): 0.000062s
+robotPeriodic(): 0.000011s
+LiveWindow.updateValues(): 0.000008s
+Shuffleboard.update(): 0.000022s
+autonomousPeriodic(): 0.203345s
+Warning at edu.wpi.first.wpilibj.Tracer.lambda$printEpochs$0(Tracer.java:63): SmartDashboard.updateValues(): 0.000062s
+robotPeriodic(): 0.000011s
+LiveWindow.updateValues(): 0.000008s
+Shuffleboard.update(): 0.000022s
+autonomousPeriodic(): 0.203345s
+0.10, 1879.20, 0.14, 7.36, 0.0000540, kF= 0.0552
+0.20, 3699.20, 0.27, 7.45, 0.0000549, kF= 0.0562
+0.30, 5529.20, 0.41, 7.40, 0.0000549, kF= 0.0562
+0.40, 7386.80, 0.55, 7.36, 0.0000551, kF= 0.0563
+0.50, 9224.40, 0.69, 7.34, 0.0000552, kF= 0.0564
+0.60, 11072.80, 0.84, 7.27, 0.0000550, kF= 0.0563
+0.70, 12764.40, 0.99, 7.25, 0.0000560, kF= 0.0573
+0.80, 13128.00, 1.00, 7.19, 0.0000548, kF= 0.0561
+0.90, 13116.40, 1.00, 7.19, 0.0000548, kF= 0.0561
+1.00, 13110.00, 1.00, 7.19, 0.0000549, kF= 0.0561
 */
