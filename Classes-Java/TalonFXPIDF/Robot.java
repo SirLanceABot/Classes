@@ -52,11 +52,12 @@ public class Robot extends TimedRobot {
   final SensorVelocityMeasPeriod filterPeriod = SensorVelocityMeasPeriod.Period_5Ms; // 10ms and 20ms had less fluctuation
   final int sampleTime = 15; // ms
   final double kP = 0.1; // works for the entire velocity range
-  final double kI = 0.; // no effect then suddenly bad
-  final double kD = 0.; // no effect then suddenly bad
+  final double kI = 0.; // if used no effect then suddenly bad
+  final double kD = 0.; // if used no effect then suddenly bad
   // final double kF = 0.046; // good around 8000 nu and okay for the entire velocity range with a little more error creeping in (~12.3v battery)
-  final double kF = 0.0555; //okay for the entire velocity range with a little more error creeping in (10v compensation)
-
+  final double kF = 0.0555; // okay for the entire velocity range with a little more error creeping in (10v compensation)
+  final double integralZone = Double.MAX_VALUE; // no limit
+  final double maxIntegralAccumulator = Double.MAX_VALUE; // no limit
 
   TalonFX flywheelMotor;
   private static final int TIMEOUT_MS = 50; // milliseconds TalonFX command timeout limit
@@ -84,7 +85,7 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("velocity set (native units)", speed);
     SmartDashboard.updateValues();
 
-    configFlywheel(flywheelMotorPort, voltageCompensation, pidIdx, invert, filterWindow, filterPeriod, sampleTime, kP, kI, kD, kF);
+    configFlywheel(flywheelMotorPort, voltageCompensation, pidIdx, invert, filterWindow, filterPeriod, sampleTime, kP, kI, kD, kF, integralZone, maxIntegralAccumulator);
 
     Timer.delay(0.2); // let everything settle - Phoenix starting and SmartDashboard updating
   }
@@ -176,10 +177,12 @@ public class Robot extends TimedRobot {
    * @param kI
    * @param kD
    * @param kF
+   * @param integralZone integral zone (in native units) If the (absolute) closed-loop error is outside of this zone, integral accumulator is automatically cleared. This ensures than integral wind up events will stop after the sensor gets far enough from its target.
+   * @param maxIntegralAccumulator Max integral accumulator (in native units)
    */
   void configFlywheel(int flywheelMotorPort, double voltageCompensation, int pidIdx,  boolean invert,
                       int filterWindow, SensorVelocityMeasPeriod filterPeriod, int sampleTime,
-                      double kP, double kI, double kD, double kF)
+                      double kP, double kI, double kD, double kF, double integralZone, double maxIntegralAccumulator)
   {
       flywheelMotor = new TalonFX(flywheelMotorPort);
 
@@ -221,6 +224,8 @@ public class Robot extends TimedRobot {
       configs.slot0.kI = kI;
       configs.slot0.kD = kD;
       configs.slot0.kF = kF;
+      configs.slot0.integralZone = integralZone;
+      configs.slot0.maxIntegralAccumulator = maxIntegralAccumulator;
 
 			System.out.println("[Talon] set configs " + flywheelMotor.configAllSettings(configs, TIMEOUT_MS)); // send the new config back
 
