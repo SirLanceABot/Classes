@@ -46,6 +46,7 @@ public class Robot extends TimedRobot {
  */
   final int flywheelMotorPort = 0;
   final double voltageCompensation = 10.; // if using voltageCompensation, kF should be determined with it on or kFcompensation = kFbattery * battery/voltageCompensation
+  final double neutralDeadband = 0.001;
   final int pidIdx = 0; // Talon primary closed loop control (or none)
   final boolean invert = false;
   final int filterWindow = 1; // ms
@@ -56,8 +57,8 @@ public class Robot extends TimedRobot {
   final double kD = 0.; // if used no effect then suddenly bad
   // final double kF = 0.046; // good around 8000 nu and okay for the entire velocity range with a little more error creeping in (~12.3v battery)
   final double kF = 0.0555; // okay for the entire velocity range with a little more error creeping in (10v compensation)
-  final double integralZone = Double.MAX_VALUE; // no limit
-  final double maxIntegralAccumulator = Double.MAX_VALUE; // no limit
+  final double integralZone = 0.; // no limit
+  final double maxIntegralAccumulator = 0.; // no limit
 
   TalonFX flywheelMotor;
   private static final int TIMEOUT_MS = 50; // milliseconds TalonFX command timeout limit
@@ -85,7 +86,8 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("velocity set (native units)", speed);
     SmartDashboard.updateValues();
 
-    configFlywheel(flywheelMotorPort, voltageCompensation, pidIdx, invert, filterWindow, filterPeriod, sampleTime, kP, kI, kD, kF, integralZone, maxIntegralAccumulator);
+    configFlywheel(flywheelMotorPort, voltageCompensation, neutralDeadband, pidIdx, invert,
+        filterWindow, filterPeriod, sampleTime, kP, kI, kD, kF, integralZone, maxIntegralAccumulator);
 
     Timer.delay(0.2); // let everything settle - Phoenix starting and SmartDashboard updating
   }
@@ -168,6 +170,7 @@ public class Robot extends TimedRobot {
    * 
    * @param flywheelMotorPort CAN
    * @param voltageCompensation limit motor input - 0. disables voltage compensation
+   * @param neutralDeadband 0.001 to 0.25
    * @param pidIdx PID index 0 is either 0 or none
    * @param invert (motor reversed)
    * @param filterWindow ms
@@ -180,7 +183,7 @@ public class Robot extends TimedRobot {
    * @param integralZone integral zone (in native units) If the (absolute) closed-loop error is outside of this zone, integral accumulator is automatically cleared. This ensures than integral wind up events will stop after the sensor gets far enough from its target.
    * @param maxIntegralAccumulator Max integral accumulator (in native units)
    */
-  void configFlywheel(int flywheelMotorPort, double voltageCompensation, int pidIdx,  boolean invert,
+  void configFlywheel(int flywheelMotorPort, double voltageCompensation, double neutralDeadband, int pidIdx,  boolean invert,
                       int filterWindow, SensorVelocityMeasPeriod filterPeriod, int sampleTime,
                       double kP, double kI, double kD, double kF, double integralZone, double maxIntegralAccumulator)
   {
@@ -215,6 +218,8 @@ public class Robot extends TimedRobot {
       // one direction only assumed and forced - these work for both inverted or not
       configs.peakOutputReverse = 0.;
       configs.peakOutputForward = 1.;
+
+      configs.neutralDeadband = neutralDeadband;
 
       configs.primaryPID.selectedFeedbackSensor = TalonFXFeedbackDevice.IntegratedSensor.toFeedbackDevice();
 
