@@ -37,6 +37,7 @@ import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.livewindow.LiveWindow;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.PowerDistribution;
 
 public class Robot extends TimedRobot {
@@ -60,6 +61,7 @@ public class Robot extends TimedRobot {
   final double integralZone = 0.; // no limit
   final double maxIntegralAccumulator = 0.; // no limit
 
+  // TalonFX flywheelMotorFollower;
   TalonFX flywheelMotor;
   private static final int TIMEOUT_MS = 50; // milliseconds TalonFX command timeout limit
   Runnable printSpeed;
@@ -70,7 +72,8 @@ public class Robot extends TimedRobot {
   double speed = 0.; //initial speed to run and display on SmartDashboard
   // It seemed that sometimes a previous value from the SmartDashboard is used (race condition?).
   // This code tries hard to prevent but not sure it's perfect or what the issue was.
-  
+  int kParameterSetAttemptCount = 5; // retry flywheel config if error
+
   Robot()
   {
     LiveWindow.disableAllTelemetry(); // don't waste time on stuff we don't need
@@ -86,10 +89,9 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("velocity set (native units)", speed);
     SmartDashboard.updateValues();
 
-    configFlywheel(flywheelMotorPort, voltageCompensation, neutralDeadband, pidIdx, invert,
-        filterWindow, filterPeriod, sampleTime, kP, kI, kD, kF, integralZone, maxIntegralAccumulator);
-
-    Timer.delay(0.2); // let everything settle - Phoenix starting and SmartDashboard updating
+    createFlywheelMotorController(kParameterSetAttemptCount);
+  
+    Timer.delay(0.1); // let settle SmartDashboard updating and anything else
   }
 
   // calculate kF variables
@@ -156,15 +158,42 @@ public class Robot extends TimedRobot {
   {
     SmartDashboard.putNumber("velocity set (native units)", speed); // in case the first failed try again - it might help
     SmartDashboard.updateValues();
-    Timer.delay(0.2);
+    Timer.delay(0.1); // make sure velocity is set (again)
   }
 
   @Override
-  public void teleopPeriodic() {   
+  public void teleopPeriodic() {
     speed = SmartDashboard.getNumber("velocity set (native units)", speed);
     setFlywheelSpeed.accept(speed);
     printSpeed.run();
   }
+
+
+  /**
+   * create the flywheel motor controller
+   * 
+   * @param retry configuration number of times if any errors
+   */
+  public void createFlywheelMotorController(int retry)
+  {
+    flywheelMotor = new TalonFX(flywheelMotorPort);
+
+    int setAttemptNumber = 0;
+    
+    while (! configFlywheelMotorController(flywheelMotorPort, voltageCompensation, neutralDeadband,
+                                           pidIdx, invert, filterWindow, filterPeriod, sampleTime,
+                                           kP, kI, kD, kF, integralZone, maxIntegralAccumulator) )
+      {
+        setAttemptNumber++;
+        if (setAttemptNumber >= retry)
+        {
+          DriverStation.reportError("[Talon] failed to initialize flywheel motor controller on CAN id " + flywheelMotorPort, false);
+          System.out.println("[Talon] failed to initialize flywheel motor controller on CAN id " + flywheelMotorPort);
+          break;
+        }
+      }
+  }
+
 
   /** Configure the Talon motor controller
    * 
@@ -183,28 +212,38 @@ public class Robot extends TimedRobot {
    * @param integralZone integral zone (in native units) If the (absolute) closed-loop error is outside of this zone, integral accumulator is automatically cleared. This ensures than integral wind up events will stop after the sensor gets far enough from its target.
    * @param maxIntegralAccumulator Max integral accumulator (in native units)
    */
-  void configFlywheel(int flywheelMotorPort, double voltageCompensation, double neutralDeadband, int pidIdx,  boolean invert,
+  boolean configFlywheelMotorController(int flywheelMotorPort, double voltageCompensation, double neutralDeadband, int pidIdx,  boolean invert,
                       int filterWindow, SensorVelocityMeasPeriod filterPeriod, int sampleTime,
                       double kP, double kI, double kD, double kF, double integralZone, double maxIntegralAccumulator)
   {
-      flywheelMotor = new TalonFX(flywheelMotorPort);
+      int errors = 0; // count TalonFX method errors
 
-      System.out.println("[Talon] clear faults " + flywheelMotor.clearStickyFaults(TIMEOUT_MS));
+      flywheelMotor.clearStickyFaults(TIMEOUT_MS);
+      errors += check(flywheelMotor, "clear faults", true);
 
-      System.out.println("[Talon] set default " + flywheelMotor.configFactoryDefault(TIMEOUT_MS));
+      flywheelMotor.configFactoryDefault(TIMEOUT_MS);
+      errors += check(flywheelMotor, "set default", true);
+
+      // flywheelMotorFollower = new TalonFX(1);
+      // System.out.println("[Talon] clear faults " + flywheelMotorFollower.clearStickyFaults(TIMEOUT_MS));
+      // System.out.println("[Talon] set default " + flywheelMotorFollower.configFactoryDefault(TIMEOUT_MS));
+      // flywheelMotorFollower.follow(flywheelMotor);
+  
+      flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_2_Feedback0, sampleTime, TIMEOUT_MS);
+      errors += check(flywheelMotor, "set status 2", true);
+      flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_13_Base_PIDF0, sampleTime, TIMEOUT_MS); // PID error
+      errors += check(flywheelMotor, "set status 13", true);
       
-      System.out.println("[Talon] set status 2 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_2_Feedback0, sampleTime, TIMEOUT_MS));
-      System.out.println("[Talon] set status 13 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_13_Base_PIDF0, sampleTime, TIMEOUT_MS)); // PID error
       //System.out.println("[Talon] set status 10 " + flywheelMotor.setStatusFramePeriod(StatusFrameEnhanced.Status_10_MotionMagic, sampleTime, TIMEOUT_MS)); // this may or may not be useful
 
       flywheelMotor.setInverted(invert);
-      System.out.println("[Talon] set inverted " + flywheelMotor.getLastError());
+      errors += check(flywheelMotor, "set inverted", true);
 
       flywheelMotor.setNeutralMode(NeutralMode.Coast);
-      System.out.println("[Talon] set neutral mode " + flywheelMotor.getLastError());
+      errors += check(flywheelMotor, "set neutral mode", true);
 
-      flywheelMotor.setSelectedSensorPosition(0, pidIdx, TIMEOUT_MS); // start at 0 position just for fun; not needed to tune velocity
-      System.out.println("[Talon] set sensor position " + flywheelMotor.getLastError());
+      flywheelMotor.setSelectedSensorPosition(452, pidIdx, TIMEOUT_MS); // start at 0 position just for fun; not needed to tune velocity
+      errors += check(flywheelMotor, "set sensor position", true);
      
       // get the factory defaults for some setting as defined by this Java API - may be different than Phoenix Tuner
 			TalonFXConfiguration configs = new TalonFXConfiguration();
@@ -232,19 +271,24 @@ public class Robot extends TimedRobot {
       configs.slot0.integralZone = integralZone;
       configs.slot0.maxIntegralAccumulator = maxIntegralAccumulator;
 
-			System.out.println("[Talon] set configs " + flywheelMotor.configAllSettings(configs, TIMEOUT_MS)); // send the new config back
+			flywheelMotor.configAllSettings(configs, TIMEOUT_MS); // send the new config back
+      errors += check(flywheelMotor, "set configs", true);
 
-      System.out.println("[Talon] get configs " + flywheelMotor.getAllConfigs(configs, TIMEOUT_MS)); // read them back
+      flywheelMotor.getAllConfigs(configs, TIMEOUT_MS); // read them back
+      errors += check(flywheelMotor, "get configs", true);
+
       System.out.println("[Talon] configuration:\n" + configs); // print them
 
       if(voltageCompensation != 0.)
       {
         flywheelMotor.enableVoltageCompensation(true);
-        if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("[Talon] set enable compensation error " + flywheelMotor.getLastError());
+        errors += check(flywheelMotor, "set enable compensation error", true);
       }
 
       System.out.println("[Talon] compensation " + flywheelMotor.isVoltageCompensationEnabled());
-      if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("[Talon] compensation error " + flywheelMotor.getLastError());
+      errors += check(flywheelMotor, "compensation error", true);
+
+      System.out.println("[Talon] " + errors + " errors from config methods"); //TODO return the count or retry if not 0
 
       //
       // methods for others to access the TalonFX motor controller
@@ -252,20 +296,20 @@ public class Robot extends TimedRobot {
       setFlywheelSpeed = (speed) -> 
       {
         flywheelMotor.set(TalonFXControlMode.Velocity, speed);
-        if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("set speed error " + flywheelMotor.getLastError());
+        check(flywheelMotor, "set speed error", false);
       };
 
       getFlywheelSpeed = () ->
       {
         var speed = flywheelMotor.getSelectedSensorVelocity(pidIdx);
-        if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("get sensor error " + flywheelMotor.getLastError());
+        check(flywheelMotor, "get sensor error", false);
         return speed;
       };
 
       getSpeedError = () ->
       {
         var error = flywheelMotor.getClosedLoopError(pidIdx);
-        if(flywheelMotor.getLastError() != ErrorCode.OK) System.out.println("get velocity_error error " + flywheelMotor.getLastError());
+        check(flywheelMotor, "get velocity_error error", false);
         return error;
       };
 
@@ -284,11 +328,31 @@ public class Robot extends TimedRobot {
         SmartDashboard.putNumber("bus voltage", flywheelMotor.getBusVoltage());
         SmartDashboard.updateValues();
       };
+
+      return errors == 0;
     }
+
+  /** Check the TalonFX function for an error and print a message
+   * 
+   * @param TalonFX
+   * @param message to print
+   * @param printAll flag to print all (true) or just errors (false)
+   * @return 1 for error and 0 for no error
+   */
+  public static int check(TalonFX motorController, String message, boolean printAll)
+  {  
+    var rc = motorController.getLastError();
+    if(rc != ErrorCode.OK || printAll)
+    {
+      System.out.println("[Talon] " + message + " " + rc);
+    }
+    return rc == ErrorCode.OK ? 0 : 1;
+  }
+
 }
 /*
 ********** Robot program starting **********
-NT: server: client CONNECTED: 10.42.37.5 port 58826
+NT: server: client CONNECTED: 10.42.37.5 port 53422
 [Talon] clear faults OK
 [Talon] set default OK
 [Talon] set status 2 OK
@@ -325,7 +389,7 @@ NT: server: client CONNECTED: 10.42.37.5 port 58826
 .peakOutputReverse = 0.0;
 .nominalOutputForward = 0.0;
 .nominalOutputReverse = 0.0;
-.neutralDeadband = 0.04007820136852395;
+.neutralDeadband = 9.775171065493646E-4;
 .voltageCompSaturation = 10.0;
 .voltageMeasurementFilter = 32;
 .velocityMeasurementPeriod = SensorVelocityMeasPeriod.Period_5Ms;
@@ -391,7 +455,10 @@ NT: server: client CONNECTED: 10.42.37.5 port 58826
 .trajectoryInterpolationEnable = true;
 .customParam0 = 0;
 .customParam1 = 0;
+[Talon] set enable compensation error OK
 [Talon] compensation true
+[Talon] compensation error OK
+[Talon] 0 errors from config methods
 ********** Robot program startup complete **********
 Default disabledPeriodic() method... Override me!
 Default robotPeriodic() method... Override me!
