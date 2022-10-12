@@ -123,12 +123,14 @@ public class Robot extends TimedRobot {
     if(kfSpeed > 1.01)
     {
       flywheelMotor.set(TalonFXControlMode.PercentOutput, 0.);
+      check(flywheelMotor, "auto set stop error", false);
       return;
     }
 
     count++;
 
     flywheelMotor.set(TalonFXControlMode.PercentOutput, kfSpeed);
+    check(flywheelMotor, "auto set speed error", false);
 
     if(count <= 50) return; // skip 50 iterations
     // then gather data for 50
@@ -143,6 +145,7 @@ public class Robot extends TimedRobot {
     averageBusVoltage /= 50.;
 
     var kFtemp = averagePctVoltage/averageSpeed * (flywheelMotor.isVoltageCompensationEnabled() ? averageBusVoltage / voltageCompensation : 1.); // voltage compensation correction factor
+    check(flywheelMotor, "auto check comp error", false);
 
     System.out.format("%5.2f, %5.2f, %5.2f, %5.2f, %10.7f, kF=%7.4f\n",
           kfSpeed, averageSpeed, averagePctVoltage, averageBusVoltage, kFtemp, kFtemp * 1023.); // 1023 throttle units per 100%VBus
@@ -242,7 +245,7 @@ public class Robot extends TimedRobot {
       flywheelMotor.setNeutralMode(NeutralMode.Coast);
       errors += check(flywheelMotor, "set neutral mode", true);
 
-      flywheelMotor.setSelectedSensorPosition(452, pidIdx, TIMEOUT_MS); // start at 0 position just for fun; not needed to tune velocity
+      flywheelMotor.setSelectedSensorPosition(0, pidIdx, TIMEOUT_MS); // start at 0 position just for fun; not needed to tune velocity
       errors += check(flywheelMotor, "set sensor position", true);
      
       // get the factory defaults for some setting as defined by this Java API - may be different than Phoenix Tuner
