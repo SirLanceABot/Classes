@@ -6,17 +6,19 @@
  * MOST PARAMETERS ARE MOST EASILY CHANGED USING THE PHOENIX TUNER
  * 
  * IN TELEOP MODE
+ * --------------
  * All the PIDF constants and filter times are built into the code and are okay for no load
- * on a junk (rebuilt but damaged) motor.
+ * on a the Falcon 500 motor.
  * The intention is they can be changed in the Phoenix Tuner to tune a real device.
  * 
- * The setpoint speed is entered on the SmartDashboard as "velocity set (native units)"
+ * The setpoint speed is entered on the SmartDashboard as "velocity set (native units)".
  * It is the only input to the program.
- * Press TAB to have the input value sent (ENTER works but then the robot is disabled)
+ * Press TAB to have the input value sent (ENTER works but then the robot is disabled).
  * 
  * IN AUTO MODE
- * programs runs fully automatically to display the calculated kF
- * voltage compensation is included in the calculation as selected by the user
+ * ------------
+ * Programs runs fully automatically at several speeds to display the calculated kF.
+ * Voltage compensation is included in the calculation as selected by the user.
  */
 
 package frc.robot;
@@ -61,6 +63,10 @@ public class Robot extends TimedRobot {
   final double integralZone = 0.; // no limit
   final double maxIntegralAccumulator = 0.; // no limit
 
+  // TalonFX magic numbers
+  double nativeToRPM = 10. * 60. / 2048.; // 10 .1sec/sec   60 secs/min   rev/2048 encoder ticks for Integrated Sensor
+  double PctVBusToThrottle = 1023.; // 1023 talon throttle unit / 100%VBus
+
   // TalonFX flywheelMotorFollower;
   TalonFX flywheelMotor;
   private static final int TIMEOUT_MS = 50; // milliseconds TalonFX command timeout limit
@@ -68,11 +74,15 @@ public class Robot extends TimedRobot {
   Consumer<Double> setFlywheelSpeed;
   Supplier<Double> getFlywheelSpeed;
   Supplier<Double> getSpeedError;
-  
+  Consumer<Double> setFlywheelPctVBus;
+  Supplier<Double> getPctOutput;
+  Supplier<Double> getBusVoltage;
+  Supplier<Boolean> isVoltageCompensationEnabled;
+
   double speed = 0.; //initial speed to run and display on SmartDashboard
   // It seemed that sometimes a previous value from the SmartDashboard is used (race condition?).
   // This code tries hard to prevent but not sure it's perfect or what the issue was.
-  int kParameterSetAttemptCount = 5; // retry flywheel config if error
+  int ParameterSetAttemptCount = 5; // retry flywheel config if error
 
   Robot()
   {
@@ -89,7 +99,7 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("velocity set (native units)", speed);
     SmartDashboard.updateValues();
 
-    createFlywheelMotorController(kParameterSetAttemptCount);
+    createFlywheelMotorController(ParameterSetAttemptCount);
   
     Timer.delay(0.1); // let settle SmartDashboard updating and anything else
   }
@@ -104,6 +114,7 @@ public class Robot extends TimedRobot {
   @Override
   public void autonomousInit()
   {
+    // clear accumulators and start at 0
     count = 0;
     kfSpeed = 0.;
     averageSpeed = 0.;
@@ -113,7 +124,7 @@ public class Robot extends TimedRobot {
 
   /**
    * print values related to kF calculation
-   * collect data at 10 %VBus settings from plus the 0 point
+   * collect data at 10 %VBus settings (and the 0 point with the NaNs)
    * skip 50 iterations to let speed settle
    * average values from the next 50 iterations
    */
@@ -122,21 +133,21 @@ public class Robot extends TimedRobot {
   {
     if(kfSpeed > 1.01)
     {
-      flywheelMotor.set(TalonFXControlMode.PercentOutput, 0.);
-      check(flywheelMotor, "auto set stop error", false);
+      setFlywheelPctVBus.accept(0.); // stop
       return;
     }
 
     count++;
 
-    flywheelMotor.set(TalonFXControlMode.PercentOutput, kfSpeed);
-    check(flywheelMotor, "auto set speed error", false);
+    setFlywheelPctVBus.accept(kfSpeed);
 
     if(count <= 50) return; // skip 50 iterations
     // then gather data for 50
     averageSpeed += getFlywheelSpeed.get();
-    averagePctVoltage += flywheelMotor.getMotorOutputPercent();
-    averageBusVoltage += flywheelMotor.getBusVoltage();
+
+    averagePctVoltage += getPctOutput.get();
+
+    averageBusVoltage += getBusVoltage.get();
 
     if(count < 100) return;
     // at iteration 100 print the smooth data and step up to next %VBus
@@ -144,11 +155,9 @@ public class Robot extends TimedRobot {
     averagePctVoltage /= 50.;
     averageBusVoltage /= 50.;
 
-    var kFtemp = averagePctVoltage/averageSpeed * (flywheelMotor.isVoltageCompensationEnabled() ? averageBusVoltage / voltageCompensation : 1.); // voltage compensation correction factor
-    check(flywheelMotor, "auto check comp error", false);
+    var kF = averagePctVoltage/averageSpeed * (isVoltageCompensationEnabled.get() ? averageBusVoltage / voltageCompensation : 1.) * PctVBusToThrottle; // voltage compensation correction factor
 
-    System.out.format("%5.2f, %5.2f, %5.2f, %5.2f, %10.7f, kF=%7.4f\n",
-          kfSpeed, averageSpeed, averagePctVoltage, averageBusVoltage, kFtemp, kFtemp * 1023.); // 1023 throttle units per 100%VBus
+    System.out.format("%5.2f, %5.2f, %5.2f, %5.2f, kF=%7.4f\n", kfSpeed, averageSpeed, averagePctVoltage, averageBusVoltage, kF);
 
     kfSpeed += 0.1;
     count = 0;
@@ -175,20 +184,21 @@ public class Robot extends TimedRobot {
   /**
    * create the flywheel motor controller
    * 
-   * @param retry configuration number of times if any errors
+   * @param attemptLimit configuration number of times if any errors (always run at least once)
    */
-  public void createFlywheelMotorController(int retry)
+  public void createFlywheelMotorController(int attemptLimit)
   {
     flywheelMotor = new TalonFX(flywheelMotorPort);
 
     int setAttemptNumber = 0;
     
+    // loop if not completed okay until retry limit
     while (! configFlywheelMotorController(flywheelMotorPort, voltageCompensation, neutralDeadband,
                                            pidIdx, invert, filterWindow, filterPeriod, sampleTime,
                                            kP, kI, kD, kF, integralZone, maxIntegralAccumulator) )
       {
         setAttemptNumber++;
-        if (setAttemptNumber >= retry)
+        if (setAttemptNumber >= attemptLimit)
         {
           DriverStation.reportError("[Talon] failed to initialize flywheel motor controller on CAN id " + flywheelMotorPort, false);
           System.out.println("[Talon] failed to initialize flywheel motor controller on CAN id " + flywheelMotorPort);
@@ -296,6 +306,12 @@ public class Robot extends TimedRobot {
       //
       // methods for others to access the TalonFX motor controller
       //
+      setFlywheelPctVBus = (speed) -> 
+      {
+        flywheelMotor.set(TalonFXControlMode.PercentOutput, speed);
+        check(flywheelMotor, "set %VBus error", false);
+      };
+
       setFlywheelSpeed = (speed) -> 
       {
         flywheelMotor.set(TalonFXControlMode.Velocity, speed);
@@ -311,24 +327,44 @@ public class Robot extends TimedRobot {
 
       getSpeedError = () ->
       {
-        var error = flywheelMotor.getClosedLoopError(pidIdx);
+        var loopError = flywheelMotor.getClosedLoopError(pidIdx);
         check(flywheelMotor, "get velocity_error error", false);
-        return error;
+        return loopError;
       };
 
+      getPctOutput = () ->
+      {
+        var pctOutput = flywheelMotor.getMotorOutputPercent();
+        check(flywheelMotor, "get %VBus error", false);
+        return pctOutput;
+      };
+
+      getBusVoltage = () ->
+      {
+        var volts = flywheelMotor.getBusVoltage();
+        check(flywheelMotor, "get voltage error", false);
+        return volts;
+      };
+
+      isVoltageCompensationEnabled = () ->
+      {
+        var enabled = flywheelMotor.isVoltageCompensationEnabled();
+        check(flywheelMotor, "auto check comp error", false);
+        return enabled;
+      };
+      
       // method to display stuff
       printSpeed = () ->
       {
-        var nativeToRPM = 10. * 60. / 2048.; // 10 .1sec/sec   60 secs/min   rev/2048 encoder ticks for Integrated Sensor
         SmartDashboard.putNumber("velocity measured (native units)", getFlywheelSpeed.get());
         SmartDashboard.putNumber("velocity measured (RPM)", getFlywheelSpeed.get() * nativeToRPM);
         SmartDashboard.putNumber("error (native units)", getSpeedError.get());
         SmartDashboard.putNumber("error (RPM)", getSpeedError.get() * nativeToRPM);
-        SmartDashboard.putNumber("kF tentative", 1023. * // 1023 talon throttle unit / 100%VBus
-            (flywheelMotor.isVoltageCompensationEnabled() ? flywheelMotor.getBusVoltage() / voltageCompensation : 1.) * // voltage compensation correction factor
-             flywheelMotor.getMotorOutputPercent() / getFlywheelSpeed.get() );
-        SmartDashboard.putNumber("%VBus", flywheelMotor.getMotorOutputPercent());
-        SmartDashboard.putNumber("bus voltage", flywheelMotor.getBusVoltage());
+        SmartDashboard.putNumber("kF tentative", PctVBusToThrottle *
+            (isVoltageCompensationEnabled.get() ? getBusVoltage.get() / voltageCompensation : 1.) * // voltage compensation correction factor
+             getPctOutput.get() / getFlywheelSpeed.get() );
+        SmartDashboard.putNumber("%VBus", getPctOutput.get());
+        SmartDashboard.putNumber("bus voltage", getBusVoltage.get());
         SmartDashboard.updateValues();
       };
 
@@ -355,7 +391,6 @@ public class Robot extends TimedRobot {
 }
 /*
 ********** Robot program starting **********
-NT: server: client CONNECTED: 10.42.37.5 port 53422
 [Talon] clear faults OK
 [Talon] set default OK
 [Talon] set status 2 OK
@@ -363,7 +398,10 @@ NT: server: client CONNECTED: 10.42.37.5 port 53422
 [Talon] set inverted OK
 [Talon] set neutral mode OK
 [Talon] set sensor position OK
+NT: server: client CONNECTED: 10.42.37.5 port 53261
 [Talon] set configs OK
+CTR: No new response to update signal
+CTR: No new response to update signal
 [Talon] get configs OK
 [Talon] configuration:
 .supplyCurrLimit = Limiting is disabled.;
@@ -469,25 +507,25 @@ Default robotPeriodic() method... Override me!
 [phoenix-diagnostics] Server 1.9.0 (Jan 4 2022,20:28:13) running on port: 1250
 Loop time of 0.02s overrun
 Warning at edu.wpi.first.wpilibj.IterativeRobotBase.printLoopOverrunMessage(IterativeRobotBase.java:359): Loop time of 0.02s overrun
-0.00, 0.00, 0.00, 7.40, NaN, kF= NaN
-SmartDashboard.updateValues(): 0.000062s
-robotPeriodic(): 0.000011s
-LiveWindow.updateValues(): 0.000008s
+0.00, 0.00, 0.00, 12.15, kF= NaN
+SmartDashboard.updateValues(): 0.000188s
+robotPeriodic(): 0.000069s
+LiveWindow.updateValues(): 0.000009s
 Shuffleboard.update(): 0.000022s
-autonomousPeriodic(): 0.203345s
-Warning at edu.wpi.first.wpilibj.Tracer.lambda$printEpochs$0(Tracer.java:63): SmartDashboard.updateValues(): 0.000062s
-robotPeriodic(): 0.000011s
-LiveWindow.updateValues(): 0.000008s
+autonomousPeriodic(): 0.256744s
+Warning at edu.wpi.first.wpilibj.Tracer.lambda$printEpochs$0(Tracer.java:63): SmartDashboard.updateValues(): 0.000188s
+robotPeriodic(): 0.000069s
+LiveWindow.updateValues(): 0.000009s
 Shuffleboard.update(): 0.000022s
-autonomousPeriodic(): 0.203345s
-0.10, 1879.20, 0.14, 7.36, 0.0000540, kF= 0.0552
-0.20, 3699.20, 0.27, 7.45, 0.0000549, kF= 0.0562
-0.30, 5529.20, 0.41, 7.40, 0.0000549, kF= 0.0562
-0.40, 7386.80, 0.55, 7.36, 0.0000551, kF= 0.0563
-0.50, 9224.40, 0.69, 7.34, 0.0000552, kF= 0.0564
-0.60, 11072.80, 0.84, 7.27, 0.0000550, kF= 0.0563
-0.70, 12764.40, 0.99, 7.25, 0.0000560, kF= 0.0573
-0.80, 13128.00, 1.00, 7.19, 0.0000548, kF= 0.0561
-0.90, 13116.40, 1.00, 7.19, 0.0000548, kF= 0.0561
-1.00, 13110.00, 1.00, 7.19, 0.0000549, kF= 0.0561
+autonomousPeriodic(): 0.256744s
+0.10, 1866.80, 0.08, 12.40, kF= 0.0555
+0.20, 3780.00, 0.17, 12.16, kF= 0.0550
+0.30, 5548.80, 0.25, 12.34, kF= 0.0561
+0.40, 7404.40, 0.33, 12.32, kF= 0.0562
+0.50, 9224.00, 0.41, 12.30, kF= 0.0563
+0.60, 11068.00, 0.50, 12.30, kF= 0.0564
+0.70, 12907.20, 0.58, 12.27, kF= 0.0564
+0.80, 14748.40, 0.66, 12.26, kF= 0.0565
+0.90, 16597.60, 0.75, 12.23, kF= 0.0565
+1.00, 18446.00, 0.83, 12.19, kF= 0.0564
 */
