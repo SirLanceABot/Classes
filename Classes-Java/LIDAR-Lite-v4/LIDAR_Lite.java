@@ -1,3 +1,10 @@
+// LIDAR-Lite v4 infrared version
+
+// Code hack from the v2 laser version - could be refactored.
+// The v4 is slow to acquire and is sensitive to the number of acquisitions to take and number of samples to average.
+// User can change the loop time (a v2 feature) but no provision to change the acquisitions and averaging because of
+// an incomplete hack of the v2 code.
+
 package frc.robot;
 
 import java.util.Timer;
@@ -26,6 +33,7 @@ public class LIDAR_Lite {
 
 		mLIDAR = new I2C(port, deviceAddress.value); // define the device object on the I2C bus
 
+		// v2 reset. If you really want to reset the v4, look at the reset register and recode this
 		/***********
 		 * reset probably not needed but this is an abundance of caution
 		 **********/
