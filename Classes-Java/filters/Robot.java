@@ -6,12 +6,9 @@
 
 package frc.robot;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 
+import edu.wpi.first.math.filter.MedianFilter;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
@@ -19,7 +16,6 @@ import edu.wpi.first.util.datalog.DataLog;
 import edu.wpi.first.util.datalog.DoubleLogEntry;
 import edu.wpi.first.wpilibj.AnalogInput;
 import edu.wpi.first.wpilibj.DataLogManager;
-import edu.wpi.first.math.filter.MedianFilter;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -50,7 +46,7 @@ public class Robot extends TimedRobot {
 
   // IQR filter to replace outliers; filter over 9 samples; reject 1.5 times norm
   private final IQRFilter iqrfilter = new IQRFilter(9, 1.5);
-  
+
   NetworkTableEntry xEntry;
   NetworkTableEntry yEntry;
   NetworkTableEntry xyEntry;
@@ -60,6 +56,25 @@ public class Robot extends TimedRobot {
   double[] xy = new double[254]; // saving 2 values so largest multiple of 2 that's less than 255
   int xyCounter = 0;
   double yActual = 0;
+  // spike filter
+  double yPredictedS = 0.;
+
+  // normally use the output of the preceding spike filter that has been tuned
+
+  // least squares filter
+  double yPredictedSG = 0.;
+
+  // least squares filter after spike filter
+  double yPredictedSSG = 0.;
+
+  // median filter
+  double yPredictedM = 0.;
+
+  // MAD filter
+  double yPredictedMAD = 0.;
+
+  // IQR filter
+  double yPredictedIQR = 0.;
 
   // private void logMemoryUse() {
   //   try {  
@@ -111,6 +126,14 @@ public class Robot extends TimedRobot {
     xyEntry = table.getEntry("XY");
 
     System.out.println("the hierarchy " + NetworkTable.getHierarchy("")); // [/]
+
+    addPeriodic(()->calculate(), 0.05);
+    }
+
+    @Override
+    public void robotPeriodic()
+    {
+      // System.out.println(m_ultrasonic.getVoltage());
     }
 
     @Override
@@ -127,23 +150,12 @@ public class Robot extends TimedRobot {
     // returned value is filtered with a rolling median filter, since ultrasonics
     // tend to be quite noisy and susceptible to sudden outliers
 
-
     //System.out.println("Sensor " + y[n-1] + ",  Least Square Predication " + yPredictedSG);
-
-    if(flip < 0.) // nothing to do with flip but using it to ignore every other acquisition since US are slow (or slower than this)
-    {
-      yActual =m_ultrasonic.getValue();
-      // fake an Ultrasonic sensor with a joystick
-      yActual = 4095. * xbox.getRightY();
-      yActual = xbox.getAButtonPressed() ? yActual*1.20 : yActual;
-      yActual = xbox.getAButtonReleased() ? yActual*.75 : yActual;
-    }
 
     SmartDashboard.putNumber("actual", fuzz(yActual, flip));
     rawLogEntry.append(yActual);
 
     // spike filter
-    var yPredictedS = Sfilter.calculate(yActual);
     SmartDashboard.putNumber("Spike filter", fuzz(yPredictedS, flip));
     SmartDashboard.putNumber("Spike filter diff", fuzz(yActual - yPredictedS, flip));
     spikeFilterLogEntry.append(yPredictedS);
@@ -151,31 +163,26 @@ public class Robot extends TimedRobot {
     // normally use the output of the preceding spike filter that has been tuned
 
     // least squares filter
-    var yPredictedSG = SGfilter.calculate(yActual);
     SmartDashboard.putNumber("SG filter", fuzz(yPredictedSG, flip));
     SmartDashboard.putNumber("SG filter diff", fuzz(yActual - yPredictedSG, flip));
     SGfilterLogEntry.append(yPredictedSG);
 
     // least squares filter after spike filter
-    var yPredictedSSG = SSGfilter.calculate(yPredictedS);
     SmartDashboard.putNumber("Spike SG filter", fuzz(yPredictedSSG, flip));
     SmartDashboard.putNumber("Spike SG filter diff", fuzz(yPredictedS - yPredictedSSG, flip));
     SSGfilterLogEntry.append(yPredictedSSG);
 
     // median filter
-    var yPredictedM = Mfilter.calculate(yActual);
     SmartDashboard.putNumber("Median filter", fuzz(yPredictedM, flip));
     SmartDashboard.putNumber("Median filter diff", fuzz(yActual - yPredictedM, flip));
     MedianFilterLogEntry.append(yPredictedM);
 
     // MAD filter
-    var yPredictedMAD = madfilter.calculate(yActual);
     SmartDashboard.putNumber("MAD filter", fuzz(yPredictedMAD, flip));
     SmartDashboard.putNumber("MAD filter diff", fuzz(yActual - yPredictedMAD, flip));
     MADfilterLogEntry.append(yPredictedMAD);
 
     // IQR filter
-    var yPredictedIQR = iqrfilter.calculate(yActual);
     SmartDashboard.putNumber("IQR filter", fuzz(yPredictedIQR, flip));
     SmartDashboard.putNumber("IQR filter diff", fuzz(yActual - yPredictedIQR, flip));
     IQRfilterLogEntry.append(yPredictedIQR);
@@ -206,6 +213,40 @@ public class Robot extends TimedRobot {
   double fuzz(double data, double fuzzPhase)
   {
     return data + Math.copySign(Math.ulp(data), fuzzPhase);
+  }
+
+  public void calculate()
+  {
+     // Pin 3-AN- Outputs analog voltage with a scaling factor of (Vcc/512) per inch.
+      // A supply of 5V yields ~9.8mV/in. and 3.3V yields ~6.4mV/in.
+      var voltsPerInch = edu.wpi.first.wpilibj.RobotController.getVoltage5V() / 512.;
+      // SmartDashboard.putNumber("5v", voltsPerInch);
+      yActual = m_ultrasonic.getVoltage()/voltsPerInch;
+
+      // // fake an Ultrasonic sensor with a joystick
+      // yActual = 4095. * xbox.getRightY();
+      // yActual = xbox.getAButtonPressed() ? yActual*1.20 : yActual;
+      // yActual = xbox.getAButtonReleased() ? yActual*.75 : yActual;
+
+      // spike filter
+      yPredictedS = Sfilter.calculate(yActual);
+
+      // normally use the output of the preceding spike filter that has been tuned
+
+      // least squares filter
+      yPredictedSG = SGfilter.calculate(yActual);
+  
+      // least squares filter after spike filter
+      yPredictedSSG = SSGfilter.calculate(yPredictedS);
+
+      // median filter
+      yPredictedM = Mfilter.calculate(yActual);
+  
+      // MAD filter
+      yPredictedMAD = madfilter.calculate(yActual);
+
+      // IQR filter
+      yPredictedIQR = iqrfilter.calculate(yActual);
   }
 
   }
