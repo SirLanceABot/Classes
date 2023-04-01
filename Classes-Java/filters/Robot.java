@@ -38,8 +38,8 @@ public class Robot extends TimedRobot {
   // Spike Filter
   private final SpikeFilter Sfilter = new SpikeFilter(100., .8, 2); // guesstimate numbers to test response
 
-  // Median filter to discard outliers; filters over 9 samples
-  private final MedianFilter Mfilter = new MedianFilter(9);
+  // Median filter to discard outliers; filters over 5 samples
+  private final MedianFilter Mfilter = new MedianFilter(5);
 
   // MAD filter to replace outliers; filter over 9 samples; reject 3.5 times norm
   private final MADFilter madfilter = new MADFilter(9, 3.5);
@@ -217,17 +217,12 @@ public class Robot extends TimedRobot {
 
   public void calculate()
   {
-     // Pin 3-AN- Outputs analog voltage with a scaling factor of (Vcc/512) per inch.
-      // A supply of 5V yields ~9.8mV/in. and 3.3V yields ~6.4mV/in.
-      var voltsPerInch = edu.wpi.first.wpilibj.RobotController.getVoltage5V() / 512.;
-      // SmartDashboard.putNumber("5v", voltsPerInch);
-      yActual = m_ultrasonic.getVoltage()/voltsPerInch;
+      // Pin 3-AN- Outputs analog voltage with a scaling factor of (Vcc/512) per cm.
+      // A supply of 5V yields ~9.8mV/cm and 3.3V yields ~6.4mV/cm
+      var voltsPerCM = edu.wpi.first.wpilibj.RobotController.getVoltage5V() / 512.;
+      yActual = m_ultrasonic.getVoltage()/voltsPerCM/30.4/*cm per foot*/;
 
-      // // fake an Ultrasonic sensor with a joystick
-      // yActual = 4095. * xbox.getRightY();
-      // yActual = xbox.getAButtonPressed() ? yActual*1.20 : yActual;
-      // yActual = xbox.getAButtonReleased() ? yActual*.75 : yActual;
-
+      // SmartDashboard.putNumber("5v", voltsPerCM);
       // spike filter
       yPredictedS = Sfilter.calculate(yActual);
 
