@@ -1,9 +1,6 @@
 // 2023 usage; not reviewed for 2024
 package frc.robot;
 
-import java.util.Arrays;
-import java.util.stream.Collectors;
-
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Translation3d;
@@ -11,15 +8,33 @@ import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class LL {
 
+  int maxTagId = 25    +1; // add 1 for tag ID 0
   NetworkTable tagsTable = NetworkTableInstance.getDefault().getTable("apriltagsLL");
+  List<StructPublisher<Pose3d>> publishRobotPoseLL = new ArrayList<>(maxTagId);
+
   double poseLL5Prev = 0.;
   double noLL = Double.NaN;
   double validLL = 1.;
   double noTagLL = -1.;
+
+  public LL() {
+    // make an empty bucket for every possible tag
+    for (int tag = 0; tag < maxTagId; tag++) {
+      publishRobotPoseLL.add(null);
+      var robotPosePublisher = tagsTable.getStructTopic("robotPose3D_" + tag, Pose3d.struct).publish();
+      publishRobotPoseLL.set(tag, robotPosePublisher);
+    }
+  }
 
   public void LLacquire() {
 
@@ -96,14 +111,7 @@ public class LL {
 
     System.out.println(robotInField.getTranslation().getX() + ", " + robotInField.getTranslation().getY());
     // put out to NetworkTables this tag's robot pose
-    tagsTable
-    .getEntry("robotpose_" + (int)tid)
-    .setDoubleArray(
-        new double[] {
-            robotInField.getTranslation().getX(), robotInField.getTranslation().getY(), robotInField.getTranslation().getZ(),
-            robotInField.getRotation().getQuaternion().getW(), robotInField.getRotation().getQuaternion().getX(),
-            robotInField.getRotation().getQuaternion().getY(), robotInField.getRotation().getQuaternion().getZ()
-        });
+    publishRobotPoseLL.get((int)tid).set(robotInField);
   }
 
   String toString(double[] array) {

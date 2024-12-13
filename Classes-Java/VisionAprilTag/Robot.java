@@ -36,6 +36,7 @@ package frc.robot;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 import org.opencv.calib3d.Calib3d;
@@ -72,12 +73,18 @@ import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.IntegerArrayPublisher;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends TimedRobot {
   
+  enum CameraOption{ArduCam320x240, ArduCam1280x800, LifeCam320x240, LifeCam640x480};
+
+  //FIXME select your camera from the list above
+  private final CameraOption selectCameraOption = CameraOption.ArduCam1280x800;
+
   static {
     System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
 }
@@ -85,15 +92,124 @@ public class Robot extends TimedRobot {
   // the roboRIO won't handle more resolution than about 320x240 (not enough cpu).
   // Calibrate the camera at the used resolution or scale Fx,Fy,Cx,Cy proportional
   // to what resolution was used for camera calibration.
-  int cameraW = 320;
-  int cameraH = 240;
+  // fx camera horizontal focal length, in pixels
+  // fy camera vertical focal length, in pixels
+  // cx camera horizontal focal center, in pixels
+  // cy camera vertical focal center, in pixels
+
+  int cameraW;
+  int cameraH;
+  int fps;
+  double cameraFx;
+  double cameraFy;
+  double cameraCx;
+  double cameraCy;
+  MatOfDouble distortionCoeffs;
+
   public Image image = new Image(); // where a video frame goes for multiple processes to use
 
-  final boolean useLL = false; // do LimeLight processing
+  //FIXME select LL usage
+  final boolean useLL = true; // do LimeLight processing
   LL ll;
 
-  @Override
-  public void robotInit() {
+  public Robot() {
+
+    switch(selectCameraOption) {
+      case ArduCam320x240: // rough calibration - wasn't done with a nice flat board
+        cameraW = 320;
+        cameraH = 240;
+        fps = 100;
+        cameraFx = 273.8682279422785;
+        cameraFy = 274.2578211409246;
+        cameraCx = 142.187975375679;
+        cameraCy = 124.6151823259089;
+        distortionCoeffs = new MatOfDouble();
+        // much of the small amount of distortion from calibration was actually the board
+        // not being smooth so don't bother using the distortion
+        // [0.03872533667096114, -0.2121025605447465, 0.00334472765894009, -0.006080540135581289, 0.4001779842036727]
+        break;
+
+      case ArduCam1280x800:// Arducam_OV9281_USB_Camera_(A?); Cameron board 1280x800      
+        cameraW = 1280;
+        cameraH = 800;
+        fps = 100;
+        cameraFx = 907.6920444758049;
+        cameraFy = 907.1513951038395;
+        cameraCx = 604.1750223777503;
+        cameraCy = 416.4609913313957;
+        distortionCoeffs = new MatOfDouble(
+          0.040354289830866516, -0.044066115475547216, 6.662818829158613E-4,9.755603732755772E-4,  // k1 k2 p1 p2
+            -0.013630390510289322, // k3
+            -0.0011985508423857224, 0.003370423168524356, 0.0010337869630847195); // k4 k5 k6
+            // assume s1 s2 s3 s4 tx ty are all zeros
+        break;
+
+      case LifeCam320x240:
+        // 320x240 lifecam calibration from PhotonVision
+        cameraW = 320;
+        cameraH = 240;
+        fps = 30;
+        cameraFx = 353.74653217742724;
+        cameraFy = 340.77624878700817;
+        cameraCx = 163.5540798921191;
+        cameraCy = 119.8945718300403;
+        distortionCoeffs = new MatOfDouble();
+        break;
+
+      case LifeCam640x480:
+        // 640x480 lifecam calibration from WPILib example
+        cameraW = 640;
+        cameraH = 480;
+        fps = 30;
+        cameraFx = 699.3778103158814;
+        cameraFy = 677.7161226393544;
+        cameraCx = 345.6059345433618;
+        cameraCy = 207.12741326228522;
+        distortionCoeffs = new MatOfDouble();
+        break;
+
+      default: break;
+
+    }
+
+    // Set up Pose Estimator - parameters are for a Microsoft Lifecam HD-3000
+    // (https://www.chiefdelphi.com/t/wpilib-apriltagdetector-sample-code/421411/21)
+    
+    // theoretically the resolution factor also directly effects the other camera parameters
+    // but apparently recalibrating at various resolutions does yield slightly varying results.
+
+    // the other arducam with Cameron board
+    // 902.229862551387, 0.0, 630.0164752216564,
+    // 0.0, 901.4463862207839, 413.07035838353374,
+    // 0.0, 0.0, 1.0
+        
+    // using Samsung tablet
+    // camMatrix: 
+    // [908.014390012331, 0.0, 597.8814589360088,
+    // 0.0, 908.6191476725982, 413.8612971221383,
+    //  0.0, 0.0, 1.0]
+    // distortionCoeffs:
+    // [0.052173675342917676, -0.07090132559762727, -5.866285222375848E-4, -0.002475170189898108, 0.012835458369393258, -0.002442550780537089, 0.005625375255529692, 9.391199615674332E-4]
+
+    // using samsung desktop screen
+    // CALIBRATION SUCCESS for res 1280x800 in 291.6018ms! camMatrix: 
+    // [907.5869786612509, 0.0, 604.8488080504388, 0.0, 909.4739674568915, 411.6013865871937, 0.0, 0.0, 1.0]
+    // distortionCoeffs:
+    //  0.05483635427166114, k1
+    // -0.09776533602636311, k2
+    // -9.78236645068978E-5, p1
+    //  4.8823267235786116E-5, p2
+    //  0.04332976089574157, k3
+    // -0.00373311108258594, k4
+    //  0.005395356105023349, k5
+    // -1.99252152117131E-4 k6
+    // (1 + 0.05483635427166114r^2 + -0.09776533602636311r^4 + 0.04332976089574157r^6) / (1 + -0.00373311108258594r^2 + 0.005395356105023349r^4 + -1.99252152117131E-4r^6) for r from 0 to 400
+
+    //opencv tutorial example
+    // https://www.wolframalpha.com/input/?i=plot (1 + -4.1802327176423804e-001 Power[\(40)Divide[r,6.5746697944293521e+002]\(41),2] + 5.0715244063187526e-001 Power[\(40)Divide[r,6.5746697944293521e+002]\(41),4] + -5.7843597214487474e-001*Power[\(40)Divide[r,6.5746697944293521e+002]\(41),6]) 
+    // all times r
+    // for r from 0 to 400
+
     var visionThread1 = new Thread(this::acquireApriltagThread);
     visionThread1.setDaemon(true);
     visionThread1.start();
@@ -113,7 +229,7 @@ public class Robot extends TimedRobot {
     if (useLL) ll = new LL();
   }
 
-@Override
+  @Override
   public void robotPeriodic()
   {
       if (useLL) ll.LLacquire();
@@ -121,7 +237,7 @@ public class Robot extends TimedRobot {
 
   @Override
   public void teleopPeriodic()
-  // test how much cpu time is left after AprilTag pose process
+  // test how much cpu time is left on roboRIO 1 after AprilTag pose process
   // enable this increases latency from 80ish to 95ish [ms]
   // and reduces fps from 20ish to 17ish (both have very wide variations)
   {
@@ -140,20 +256,21 @@ public class Robot extends TimedRobot {
     // look for tag36h11 2024, correct 0 or 1 error bits on roboRIO v1 or up to 2 on roboRIO v2
     detector.addFamily("tag36h11", 1);
 
-    // 2025 beta 1 had 300 default which is too large to be useful so use 2024 value of 5
+    // 2025 beta 1 & 2 had 300 default which is too large to be useful so use 2024 value of 5
     QuadThresholdParameters qtp = detector.getQuadThresholdParameters();
-    System.out.println(detector.getQuadThresholdParameters().minClusterPixels);
     qtp.minClusterPixels = 5;
     // qtp.criticalAngle = 10 * Math.PI / 180.0; // also changed in 2025 beta 1 for unknown reasons
     detector.setQuadThresholdParameters(qtp);
     
     // Get the UsbCamera from CameraServer
-    UsbCamera camera = CameraServer.startAutomaticCapture(1); // http://10.42.37.2:1181/   http://roborio-4237-frc.local:1181/?action=stream
+    //FIXME pick your camera
+    int cameraDeviceId = 0;
+    UsbCamera camera = CameraServer.startAutomaticCapture(cameraDeviceId); // http://10.42.37.2:1181/   http://roborio-4237-frc.local:1181/?action=stream
           //"myCam", "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9281_USB_Camera_UC762-video-index0"
     // Set the resolution and frames per second
     camera.setResolution(cameraW, cameraH);
-    camera.setFPS(30); // 30 for lifecam, 100 for arducam
-    // camera.setFPS(100); // 30 for lifecam, 100 for arducam
+    camera.setFPS(fps);
+
     // camera.setExposureAuto();
 
     // Get a CvSink. This will capture Mats from the camera
@@ -163,8 +280,8 @@ public class Robot extends TimedRobot {
     var mat = new Mat();
     var grayMat = new Mat();
 
-    // This 'while' cannot be 'true'. The program will never exit if it is. This
-    // lets the robot stop this thread when restarting robot code or deploying.
+    // This 'while' cannot be 'true'. The program will never exit if it is. Using
+    // interrupted() lets the robot stop this thread when restarting robot code or deploying.
     while (!Thread.interrupted()) {
       // Tell the CvSink to grab a frame from the camera and put it
       // in the source mat.  If there is an error notify the output.
@@ -215,20 +332,39 @@ public class Robot extends TimedRobot {
       aprilTagFieldLayout = null;
     }
 
-    Consumer<AprilTag> printTag = tag ->
+    // We'll output to NT
+    int maxTagId = 25    +1; // add 1 for tag ID 0
+    NetworkTable tagsTable = NetworkTableInstance.getDefault().getTable("apriltags");
+    IntegerArrayPublisher pubTags = tagsTable.getIntegerArrayTopic("tags").publish();
+
+    List<StructPublisher<Pose3d>> publishRobotPose = new ArrayList<>(maxTagId);
+    List<StructPublisher<Pose3d>> publishTagPose = new ArrayList<>(maxTagId);
+
+    // make an empty bucket for every possible tag
+    for (int tag = 0; tag < maxTagId; tag++) {
+      publishRobotPose.add(null);
+      publishTagPose.add(null);
+    }
+
+    Consumer<AprilTag> initializeTagAndPose = tag ->
       {
         System.out.format("%s %6.1f, %6.1f, %6.1f [degrees]%n",
               tag.toString(),
               Units.radiansToDegrees(tag.pose.getRotation().getX()),
               Units.radiansToDegrees(tag.pose.getRotation().getY()),
               Units.radiansToDegrees(tag.pose.getRotation().getZ()));
+
+              var robotPosePublisher = tagsTable.getStructTopic("robotPose3D_" + tag.ID, Pose3d.struct).publish();
+              var tagPosePublisher = tagsTable.getStructTopic("tagPose3D_" + tag.ID, Pose3d.struct).publish();
+              publishRobotPose.set(tag.ID, robotPosePublisher);
+              publishTagPose.set(tag.ID, tagPosePublisher);
       };
 
     System.out.println(aprilTagFieldLayout.getTags().size() + " Tags on file");    
-    aprilTagFieldLayout.getTags().forEach(printTag);
+    aprilTagFieldLayout.getTags().forEach(initializeTagAndPose);
 
     // Instantiate once
-    ArrayList<Long> tags = new ArrayList<>();
+    ArrayList<Long> tags = new ArrayList<>(maxTagId);
     var outlineColor = new Scalar(0, 255, 0); // bgr
     var crossColor = new Scalar(0, 0, 255); // bgr
     var crossLength = 10;
@@ -239,71 +375,25 @@ public class Robot extends TimedRobot {
     // Setup a CvSource. This will send images back to the Dashboard
     CvSource outputStream = CameraServer.putVideo("Detected", cameraW, cameraH); // http://10.42.37.2:1182/  http://roborio-4237-frc.local:1182/?action=stream
 
-    // theoretically the resolution factor also directly effects the other camera parameters
-    // but apparently recalibrating at various resolutions does yield slightly varying results.
-
-    // fx camera horizontal focal length, in pixels
-    // fy camera vertical focal length, in pixels
-    // cx camera horizontal focal center, in pixels
-    // cy camera vertical focal center, in pixels
-///////////////////////////
-    // 640x480 lifecam calibration from WPILib example
-    // double cameraFx = 699.3778103158814;
-    // double cameraFy = 677.7161226393544;
-    // double cameraCx = 345.6059345433618;
-    // double cameraCy = 207.12741326228522;
-    // MatOfDouble distCoeffs = new MatOfDouble();
-///////////////////////////
-    // 320x240 lifecam calibration from PhotonVision
-    double cameraFx = 353.74653217742724;
-    double cameraFy = 340.77624878700817;
-    double cameraCx = 163.5540798921191;
-    double cameraCy = 119.8945718300403;
-    MatOfDouble distCoeffs = new MatOfDouble();
-///////////////////////////
-    // 320x240 arducam calibration from rkt
-    // [273.8682279422785, 0, 142.187975375679;
-    //  0, 274.2578211409246, 124.6151823259089;
-    //  0, 0, 1]
-    // rough calibration - wasn't done with a nice flat board
-    // double cameraFx = 273.8682279422785;
-    // double cameraFy = 274.2578211409246;
-    // double cameraCx = 142.187975375679;
-    // double cameraCy = 124.6151823259089;
-    // distortion coefficients Mat [ 1*5*CV_64FC1, isCont=true, isSubmat=false, nativeObj=0x1f04d2ed520, dataAddr=0x1f04d38da80 ]
-    // [0.03872533667096114, -0.2121025605447465, 0.00334472765894009, -0.006080540135581289, 0.4001779842036727]
-    // MatOfDouble distCoeffs = new MatOfDouble(
-      // much of the small amount of distortion from calibration was actually the board
-      // not being smooth so don't bother using the distortion
-      // 0.03872533667096114, -0.2121025605447465, 0.00334472765894009, -0.006080540135581289, 0.4001779842036727
-      // );
-///////////////////////////
     double tagSize = 0.1651; // meters of the targeted AprilTag
 
-    // (https://www.chiefdelphi.com/t/wpilib-apriltagdetector-sample-code/421411/21)
     var poseEstConfig =
         new AprilTagPoseEstimator.Config( tagSize, cameraFx, cameraFy, cameraCx, cameraCy);
-    // Set up Pose Estimator - parameters are for a Microsoft Lifecam HD-3000
-    // (https://www.chiefdelphi.com/t/wpilib-apriltagdetector-sample-code/421411/21)
-    // var poseEstConfig =
-    //     new AprilTagPoseEstimator.Config(
-    //         0.1651, 699.3778103158814, 677.7161226393544, 345.6059345433618, 207.12741326228522);
+
     var estimator = new AprilTagPoseEstimator(poseEstConfig);
 
-    // We'll output to NT
-    NetworkTable tagsTable = NetworkTableInstance.getDefault().getTable("apriltags");
-    IntegerArrayPublisher pubTags = tagsTable.getIntegerArrayTopic("tags").publish();
+    // while conditional cannot be 'true' otherwise the program will never exit if it is.
+    // This lets the robot stop this thread when restarting robot code or deploying.
 
-    // This cannot be 'true'. The program will never exit if it is. This
-    // lets the robot stop this thread when restarting robot code or
-    // deploying.
+    // loop to get camera frames
     while (!Thread.interrupted()) {
       // long frameStartTime = System.nanoTime();
-    AprilTagDetection[] detections = image.getImage(mat, acquisitionTime); // get the buffered image
+    AprilTagDetection[] detections = image.getImage(mat, acquisitionTime); // get the buffered image w/ detections
  
     // have not seen any tags yet
     tags.clear();
 
+    // loop to get all AprilTag detections within current camera frame
     for (AprilTagDetection detection : detections) {
 
       Pose3d tagInFieldFrame; // pose from WPILib resource or custom pose file
@@ -413,10 +503,10 @@ public class Robot extends TimedRobot {
         R.put(0, 0, rotationVector[0], rotationVector[1], rotationVector[2]);
 
         MatOfPoint2f imagePointsBottom = new MatOfPoint2f();
-        Calib3d.projectPoints(bottom, R, T, K, distCoeffs, imagePointsBottom);
+        Calib3d.projectPoints(bottom, R, T, K, distortionCoeffs, imagePointsBottom);
 
         MatOfPoint2f imagePointsTop = new MatOfPoint2f();
-        Calib3d.projectPoints(top, R, T, K, distCoeffs, imagePointsTop);
+        Calib3d.projectPoints(top, R, T, K, distortionCoeffs, imagePointsTop);
         
         ArrayList<Point> topCornerPoints = new ArrayList<Point>();
 
@@ -518,55 +608,19 @@ public class Robot extends TimedRobot {
 
       // end transforms to get the robot pose from this vision tag pose
 
-      // put pose into dashboard
+      // put detection and pose information on dashboards
       Rotation3d rot = robotInFieldFrame.getRotation();
 
-      tagsTable
-          .getEntry("robotPoseNotAS3D_" + detection.getId())
-          .setDoubleArray(
-              new double[] {
-                robotInFieldFrame.getX(), robotInFieldFrame.getY(), robotInFieldFrame.getZ(), rot.getX(), rot.getY(), rot.getZ()
-              });
+      // arrays don't display on the SmartDashboard; they display on the SmartDashboard tab of ShuffleBoard
+      SmartDashboard.putNumberArray("robotPose3d_" + detection.getId(),new double[] {
+                      robotInFieldFrame.getX(), robotInFieldFrame.getY(), robotInFieldFrame.getZ(),
+                      rot.getX(), rot.getY(), rot.getZ()} );
+      
+      SmartDashboard.putNumber("detectionDecisionMargin_" + detection.getId(), detection.getDecisionMargin());
 
-      tagsTable // display formatted for AdvantageScope Odometry tab
-      .getEntry("robotPose2D_" + detection.getId())
-      .setDoubleArray(
-          new double[] {
-            robotInFieldFrame.getX(), robotInFieldFrame.getY(), rot.getZ()
-          });
-    
-      // put out to NetworkTables robot pose for this tag AdvantageScope format
-      tagsTable
-      .getEntry("robotPose3D_" + detection.getId())
-      .setDoubleArray(
-          new double[] {
-                  robotInFieldFrame.getTranslation().getX(),
-                  robotInFieldFrame.getTranslation().getY(),
-                  robotInFieldFrame.getTranslation().getZ(),
-                  robotInFieldFrame.getRotation().getQuaternion().getW(),
-                  robotInFieldFrame.getRotation().getQuaternion().getX(),
-                  robotInFieldFrame.getRotation().getQuaternion().getY(),
-                  robotInFieldFrame.getRotation().getQuaternion().getZ()
-          });
-    
-      // put out to NetworkTables this tag pose AdvantageScope format
-      tagsTable
-        .getEntry("tagPose3D_" + detection.getId())
-        .setDoubleArray(
-            new double[] {
-                    tagInFieldFrame.getTranslation().getX(),
-                    tagInFieldFrame.getTranslation().getY(),
-                    tagInFieldFrame.getTranslation().getZ(),
-                    tagInFieldFrame.getRotation().getQuaternion().getW(),
-                    tagInFieldFrame.getRotation().getQuaternion().getX(),
-                    tagInFieldFrame.getRotation().getQuaternion().getY(),
-                    tagInFieldFrame.getRotation().getQuaternion().getZ()
-            });
-
-      tagsTable // display formatted for AdvantageScope Odometry tab
-      .getEntry("detectionDecisionMargin_" + detection.getId())
-      .setDouble(detection.getDecisionMargin());
-  
+      // put out to NetworkTables tag and robot pose for this tag in AdvantageScope format
+      publishRobotPose.get(detection.getId()).set(robotInFieldFrame);
+      publishTagPose.get(detection.getId()).set(tagInFieldFrame);
     } // end of all detections
 
     long frameEndTime = System.nanoTime();
@@ -575,7 +629,7 @@ public class Robot extends TimedRobot {
 
     // put list of tags onto dashboard
     pubTags.set(tags.stream().mapToLong(Long::longValue).toArray());
-
+  
     // all the data available at this point.
 
     // Give the output stream a new image to display
@@ -657,7 +711,6 @@ AprilTag(ID: 13, pose: Pose3d(Translation3d(X: 11.22, Y: 4.11, Z: 1.32), Rotatio
 AprilTag(ID: 14, pose: Pose3d(Translation3d(X: 5.32, Y: 4.11, Z: 1.32), Rotation3d(Quaternion(1.0, 0.0, 0.0, 0.0)))) 0.0, 0.0, 0.0 [degrees]
 AprilTag(ID: 15, pose: Pose3d(Translation3d(X: 4.64, Y: 4.50, Z: 1.32), Rotation3d(Quaternion(0.5000000000000001, 0.0, 0.0, 0.8660254037844386)))) 0.0, 0.0, 120.0 [degrees]
 AprilTag(ID: 16, pose: Pose3d(Translation3d(X: 4.64, Y: 3.71, Z: 1.32), Rotation3d(Quaternion(-0.49999999999999983, -0.0, 0.0, 0.8660254037844388)))) 0.0, 0.0, -120.0 [degrees]
-
 
 LimeLight fmap at
 https://docs.limelightvision.io/docs/docs-limelight/pipeline-apriltag/apriltag-map-specification
