@@ -83,7 +83,7 @@ public class Robot extends TimedRobot {
   enum CameraOption{ArduCam320x240, ArduCam1280x800, LifeCam320x240, LifeCam640x480};
 
   //FIXME select your camera from the list above
-  private final CameraOption selectCameraOption = CameraOption.ArduCam1280x800;
+  private final CameraOption selectCameraOption = CameraOption.LifeCam640x480/*ArduCam1280x800*/;
 
   static {
     System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
@@ -110,7 +110,9 @@ public class Robot extends TimedRobot {
 
   //FIXME select LL usage
   final boolean useLL = true; // do LimeLight processing
+  final boolean usePV = true; // do PhotonVision processing
   LL ll;
+  PhotonVision pv;
 
   public Robot() {
 
@@ -227,12 +229,14 @@ public class Robot extends TimedRobot {
     visionThread2.start();
 
     if (useLL) ll = new LL();
+    if (usePV) pv = new PhotonVision();
   }
 
   @Override
   public void robotPeriodic()
   {
       if (useLL) ll.LLacquire();
+      if (usePV) pv.PVacquire();
   }
 
   @Override
