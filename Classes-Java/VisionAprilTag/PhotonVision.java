@@ -18,11 +18,17 @@ import edu.wpi.first.wpilibj.Filesystem;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
+import java.util.logging.Logger;
 
 public class PhotonVision {
 
-      // Tag positions
+  private static Logger LOGGER;
+  static {
+    LOGGER = Logger.getLogger("");
+    LOGGER.info("Loading");     
+  }
+
+    // Tag positions
     // tag rotation is CCW looking down on field from the ceiling.
     // rotating around Z, 0 degrees is parallel to Y and facing down field or +X. 30 degrees is still
     // facing down field +X and a little facing into the +Y across the field
@@ -117,9 +123,37 @@ public class PhotonVision {
 no PV results
 result #1
 
-RESULT PhotonPipelineResult [metadata=PhotonPipelineMetadata [captureTimestampMicros=9628776, publishTimestampMicros=9652431, sequenceID=31692, timeSinceLastPong=974440], targets=[PhotonTrackedTarget [yaw=15.025610619756835, pitch=-1.967468576919871, area=1.5, skew=0.0, fiducialId=7, objDetectId=-1, objDetectConf=-1.0, bestCameraToTarget=Transform3d(Translation3d(X: 0.00, Y: 0.00, Z: 0.00), Rotation3d(Quaternion(1.0, 0.0, 0.0, 0.0))), altCameraToTarget=Transform3d(Translation3d(X: 0.00, Y: 0.00, Z: 0.00), Rotation3d(Quaternion(1.0, 0.0, 0.0, 0.0))), poseAmbiguity=-1.0, minAreaRectCorners=[(818.565491164281,417.0119688597161), (858.4179621716057,352.7121863282917), (1056.852477585719,475.70025037856516), (1017.0000065783943,540.0000329099896)], detectedCorners=[(825.3000488281252,421.50106811523443), (1017.5325927734374,540.2463989257812), (1017.7407226562499,451.86822509765625), (857.4851684570314,355.47784423828125)]]], multitagResult=Optional.empty]
+RESULT PhotonPipelineResult 
+[metadata=PhotonPipelineMetadata
+ [captureTimestampMicros=9628776, publishTimestampMicros=9652431, sequenceID=31692, timeSinceLastPong=974440],
+  targets=[PhotonTrackedTarget 
+  [yaw=15.025610619756835, 
+  pitch=-1.967468576919871, 
+  area=1.5, 
+  skew=0.0, 
+  fiducialId=7, 
+  objDetectId=-1, 
+  objDetectConf=-1.0, 
+  bestCameraToTarget=Transform3d(Translation3d(X: 0.00, Y: 0.00, Z: 0.00), Rotation3d(Quaternion(1.0, 0.0, 0.0, 0.0))), 
+  altCameraToTarget=Transform3d(Translation3d(X: 0.00, Y: 0.00, Z: 0.00), Rotation3d(Quaternion(1.0, 0.0, 0.0, 0.0))), 
+  poseAmbiguity=-1.0, 
+  minAreaRectCorners=[(818.565491164281,417.0119688597161), (858.4179621716057,352.7121863282917), (1056.852477585719,475.70025037856516), (1017.0000065783943,540.0000329099896)], 
+  detectedCorners=[(825.3000488281252,421.50106811523443), (1017.5325927734374,540.2463989257812), (1017.7407226562499,451.86822509765625), (857.4851684570314,355.47784423828125)]]], 
+  multitagResult=Optional.empty]
 
-BEST TARGET PhotonTrackedTarget [yaw=15.025610619756835, pitch=-1.967468576919871, area=1.5, skew=0.0, fiducialId=7, objDetectId=-1, objDetectConf=-1.0, bestCameraToTarget=Transform3d(Translation3d(X: 0.00, Y: 0.00, Z: 0.00), Rotation3d(Quaternion(1.0, 0.0, 0.0, 0.0))), altCameraToTarget=Transform3d(Translation3d(X: 0.00, Y: 0.00, Z: 0.00), Rotation3d(Quaternion(1.0, 0.0, 0.0, 0.0))), poseAmbiguity=-1.0, minAreaRectCorners=[(818.565491164281,417.0119688597161), (858.4179621716057,352.7121863282917), (1056.852477585719,475.70025037856516), (1017.0000065783943,540.0000329099896)], detectedCorners=[(825.3000488281252,421.50106811523443), (1017.5325927734374,540.2463989257812), (1017.7407226562499,451.86822509765625), (857.4851684570314,355.47784423828125)]]
+BEST TARGET PhotonTrackedTarget 
+[yaw=15.025610619756835, 
+pitch=-1.967468576919871, 
+area=1.5, 
+skew=0.0, 
+fiducialId=7, 
+objDetectId=-1, 
+objDetectConf=-1.0, 
+bestCameraToTarget=Transform3d(Translation3d(X: 0.00, Y: 0.00, Z: 0.00), Rotation3d(Quaternion(1.0, 0.0, 0.0, 0.0))), 
+altCameraToTarget=Transform3d(Translation3d(X: 0.00, Y: 0.00, Z: 0.00), Rotation3d(Quaternion(1.0, 0.0, 0.0, 0.0))), 
+poseAmbiguity=-1.0, 
+minAreaRectCorners=[(818.565491164281,417.0119688597161), (858.4179621716057,352.7121863282917), (1056.852477585719,475.70025037856516), (1017.0000065783943,540.0000329099896)], 
+detectedCorners=[(825.3000488281252,421.50106811523443), (1017.5325927734374,540.2463989257812), (1017.7407226562499,451.86822509765625), (857.4851684570314,355.47784423828125)]]
 */
 
 // C:\Users\bike1\downloads>java -jar photonvision-v2025.0.0-beta-6-winx64.jar

@@ -14,13 +14,23 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class LL {
 
+  private static Logger LOGGER;
+  static {
+    LOGGER = Logger.getLogger("");
+    LOGGER.info("Loading");     
+  }
+
   int maxTagId = 25    +1; // add 1 for tag ID 0
+
   NetworkTable tagsTable = NetworkTableInstance.getDefault().getTable("apriltagsLL");
+
   List<StructPublisher<Pose3d>> publishRobotPoseLL = new ArrayList<>(maxTagId);
+  List<StructPublisher<Pose3d>> publishRobotPoseBlueLL = new ArrayList<>(maxTagId);
 
   double poseLL5Prev = 0.;
   double noLL = Double.NaN;
@@ -33,17 +43,14 @@ public class LL {
       publishRobotPoseLL.add(null);
       var robotPosePublisher = tagsTable.getStructTopic("robotPose3D_" + tag, Pose3d.struct).publish();
       publishRobotPoseLL.set(tag, robotPosePublisher);
+
+      publishRobotPoseBlueLL.add(null);
+      var robotPoseBluePublisher = tagsTable.getStructTopic("robotPose3DBlue_" + tag, Pose3d.struct).publish();
+      publishRobotPoseBlueLL.set(tag, robotPoseBluePublisher);
     }
   }
 
   public void LLacquire() {
-
-    // double tv = NetworkTableInstance.getDefault().getTable("limelight").getEntry("tv").getDouble(9991);
-    // double tx = NetworkTableInstance.getDefault().getTable("limelight").getEntry("tx").getDouble(9992);
-    // double ty = NetworkTableInstance.getDefault().getTable("limelight").getEntry("ty").getDouble(9993);
-    // double ta = NetworkTableInstance.getDefault().getTable("limelight").getEntry("ta").getDouble(9994);
-
-    // System.out.println(tv + " " + tx + " " +ty + " " + ta);
 
     NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
     
@@ -59,7 +66,6 @@ public class LL {
     double area = ta.getDouble(noLL);
     double valid = tv.getDouble(noLL);
     double skew = ts.getDouble(noLL);
-    // System.out.println("ts " + timeBoot);
 
     //post to smart dashboard periodically
     SmartDashboard.putNumber("LimelightX", x);
@@ -67,10 +73,6 @@ public class LL {
     SmartDashboard.putNumber("LimelightArea", area);
     SmartDashboard.putNumber("LimelightValid", valid);
     SmartDashboard.putNumber("LimelightSkew", skew);
-
-    // System.out.print(System.currentTimeMillis());
-
-    // System.out.println( "result\n" + LimelightHelpers.getLatestResults("limelight").targetingResults.toString() );
 
     var
     tid = NetworkTableInstance
@@ -88,8 +90,12 @@ public class LL {
 
     // skip invalid or unchanging data 
     if(valid != validLL || tid == noTagLL || tid == noLL || poseLL[5] == poseLL5Prev)
-    {    
+    {
+      SmartDashboard.putString("LL", "no target");
       return; 
+    }
+    else {
+      SmartDashboard.putString("LL", "valid target");
     }
 
     poseLL5Prev = poseLL[5];
@@ -107,11 +113,12 @@ public class LL {
                             Units.degreesToRadians(poseLL[4]),
                               Units.degreesToRadians(poseLL[5])) );
 
-    // PrintPose.print("LL robot in field", (int)tid, robotInField);
+    var
+    robotPoseBlue = LimelightHelpers.getLatestResults("limelight").getBotPose3d_wpiBlue();
 
-    System.out.println(robotInField.getTranslation().getX() + ", " + robotInField.getTranslation().getY());
     // put out to NetworkTables this tag's robot pose
     publishRobotPoseLL.get((int)tid).set(robotInField);
+    publishRobotPoseBlueLL.get((int)tid).set(robotPoseBlue);
   }
 
   String toString(double[] array) {

@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 import org.opencv.calib3d.Calib3d;
 import org.opencv.core.Core;
@@ -79,43 +80,57 @@ import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends TimedRobot {
-  
-  enum CameraOption{ArduCam320x240, ArduCam1280x800, LifeCam320x240, LifeCam640x480};
 
-  //FIXME select your camera from the list above
-  private final CameraOption selectCameraOption = CameraOption.LifeCam640x480/*ArduCam1280x800*/;
+    public static final String ANSI_RESET = "\u001B[0m";
+    public static final String ANSI_BLACK = "\u001B[30m";
+    public static final String ANSI_RED = "\u001B[31m";
+    public static final String ANSI_GREEN = "\u001B[32m";
+    public static final String ANSI_YELLOW = "\u001B[33m";
+    public static final String ANSI_BLUE = "\u001B[34m";
+    public static final String ANSI_PURPLE = "\u001B[35m";
+    public static final String ANSI_CYAN = "\u001B[36m";
+    public static final String ANSI_WHITE = "\u001B[37m";
+
+  private static Logger LOGGER;
+  static {
+    System.setProperty("java.util.logging.SimpleFormatter.format",
+    ANSI_YELLOW + "%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS.%1$tL %4$-7s [%3$s %2$s] %5$s %6$s%n" + ANSI_RESET);
+    LOGGER = Logger.getLogger("");
+    LOGGER.info("\u001B[33m" + "Loading");
+  }
 
   static {
-    System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
-}
+    System.loadLibrary(Core.NATIVE_LIBRARY_NAME); // OpenCV    
+  }
 
-  // the roboRIO won't handle more resolution than about 320x240 (not enough cpu).
+  //FIXME select your camera from this list
+  enum CameraOption{ArduCam320x240, ArduCam1280x800, LifeCam320x240, LifeCam640x480};
+
+  private final CameraOption selectCameraOption = CameraOption.LifeCam640x480/*ArduCam1280x800*/;
+
+  // the roboRIO v1 won't handle more resolution than about 320x240 (not enough cpu).
   // Calibrate the camera at the used resolution or scale Fx,Fy,Cx,Cy proportional
   // to what resolution was used for camera calibration.
-  // fx camera horizontal focal length, in pixels
-  // fy camera vertical focal length, in pixels
-  // cx camera horizontal focal center, in pixels
-  // cy camera vertical focal center, in pixels
 
-  int cameraW;
-  int cameraH;
-  int fps;
-  double cameraFx;
-  double cameraFy;
-  double cameraCx;
-  double cameraCy;
+  int cameraW; // image width
+  int cameraH; // image height
+  int fps;     // frames/second
+  double cameraFx; // fx camera horizontal focal length, in pixels
+  double cameraFy; // fy camera vertical focal length, in pixels
+  double cameraCx; // cx camera horizontal focal center, in pixels
+  double cameraCy; // cy camera vertical focal center, in pixels
   MatOfDouble distortionCoeffs;
 
   public Image image = new Image(); // where a video frame goes for multiple processes to use
 
-  //FIXME select LL usage
+  //FIXME select LL and PV usage
   final boolean useLL = true; // do LimeLight processing
-  final boolean usePV = true; // do PhotonVision processing
   LL ll;
+  final boolean usePV = false; // do PhotonVision processing
   PhotonVision pv;
 
   public Robot() {
-
+    
     switch(selectCameraOption) {
       case ArduCam320x240: // rough calibration - wasn't done with a nice flat board
         cameraW = 320;
@@ -131,6 +146,13 @@ public class Robot extends TimedRobot {
         // [0.03872533667096114, -0.2121025605447465, 0.00334472765894009, -0.006080540135581289, 0.4001779842036727]
         break;
 
+// {"DISPLAY_NAME":"","DISTORTION_COEFFICIENTS":[
+// 0.09279791624496432,-0.013162736031556143,0.00034288948646321224,0.0008282135215583248,-0.2112763216404896],
+// "INTRINSICS_MATRIX":[
+// 742.0300917168702,0.0,652.0266479431351,
+// 0.0,741.6376375442737,375.18558295593374,
+// 0.0,0.0,1.0],
+// "REPROJECTION_ERROR":0.31303468947665714,"RES_X":1280.0,"RES_Y":800.0}
       case ArduCam1280x800:// Arducam_OV9281_USB_Camera_(A?); Cameron board 1280x800      
         cameraW = 1280;
         cameraH = 800;
@@ -171,7 +193,6 @@ public class Robot extends TimedRobot {
         break;
 
       default: break;
-
     }
 
     // Set up Pose Estimator - parameters are for a Microsoft Lifecam HD-3000
