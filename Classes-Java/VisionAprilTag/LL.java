@@ -1,6 +1,10 @@
 // 2023 usage; not reviewed for 2024
 package frc.robot;
 
+import java.util.Arrays;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Translation3d;
@@ -9,13 +13,8 @@ import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructPublisher;
+import edu.wpi.first.networktables.StructTopic;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 public class LL {
 
@@ -25,35 +24,48 @@ public class LL {
     LOGGER.info("Loading");     
   }
 
-  int maxTagId = 25    +1; // add 1 for tag ID 0
+////
+    // Get the default NetworkTables instance
+    NetworkTableInstance ntInstance = NetworkTableInstance.getDefault();
 
-  NetworkTable tagsTable = NetworkTableInstance.getDefault().getTable("apriltagsLL");
+    // Create a StructTopic for a Pose3d object
+    StructTopic<Pose3d> poseTopic = ntInstance.getStructTopic("MyPose", Pose3d.struct);
 
-  List<StructPublisher<Pose3d>> publishRobotPoseLL = new ArrayList<>(maxTagId);
-  List<StructPublisher<Pose3d>> publishRobotPoseBlueLL = new ArrayList<>(maxTagId);
+    // Create a publisher for the topic
+    StructPublisher<Pose3d> posePublisher = poseTopic.publish();
+
+    // Create a Pose2d object
+    Pose3d myPose = new Pose3d(1.0, 2.0, 0., new Rotation3d());
+
+    // Publish the Pose3 object
+    // posePublisher.set(myPose);
+////
+
+  String name;
+  NetworkTable LLTable = NetworkTableInstance.getDefault().getTable("LL");
+
+  StructPublisher<Pose3d> publishRobotPose;
+  StructPublisher<Pose3d> publishRobotPoseBlue;
 
   double poseLL5Prev = 0.;
   double noLL = Double.NaN;
   double validLL = 1.;
   double noTagLL = -1.;
 
-  public LL() {
-    // make an empty bucket for every possible tag
-    for (int tag = 0; tag < maxTagId; tag++) {
-      publishRobotPoseLL.add(null);
-      var robotPosePublisher = tagsTable.getStructTopic("robotPose3D_" + tag, Pose3d.struct).publish();
-      publishRobotPoseLL.set(tag, robotPosePublisher);
-
-      publishRobotPoseBlueLL.add(null);
-      var robotPoseBluePublisher = tagsTable.getStructTopic("robotPose3DBlue_" + tag, Pose3d.struct).publish();
-      publishRobotPoseBlueLL.set(tag, robotPoseBluePublisher);
-    }
+  public LL(String name) {
+    this.name = name;
+    publishRobotPose = LLTable.getStructTopic("robotPose3D", Pose3d.struct).publish();
+    publishRobotPoseBlue = LLTable.getStructTopic("robotPose3DBlue", Pose3d.struct).publish();
   }
 
   public void LLacquire() {
 
-    NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
-    
+    NetworkTable table = NetworkTableInstance.getDefault().getTable(name);
+
+    // System.out.println("keys for table path " + table.getPath());
+    // table.getKeys().forEach((level)-> System.out.println(level));
+    // System.out.println("end list network tables");
+
     NetworkTableEntry tx = table.getEntry("tx");
     NetworkTableEntry ty = table.getEntry("ty");
     NetworkTableEntry ta = table.getEntry("ta");
@@ -117,8 +129,8 @@ public class LL {
     robotPoseBlue = LimelightHelpers.getLatestResults("limelight").getBotPose3d_wpiBlue();
 
     // put out to NetworkTables this tag's robot pose
-    publishRobotPoseLL.get((int)tid).set(robotInField);
-    publishRobotPoseBlueLL.get((int)tid).set(robotPoseBlue);
+    publishRobotPose.set(robotInField);
+    publishRobotPoseBlue.set(robotPoseBlue);
   }
 
   String toString(double[] array) {
