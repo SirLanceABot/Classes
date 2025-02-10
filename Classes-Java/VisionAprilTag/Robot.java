@@ -128,6 +128,7 @@ public class Robot extends TimedRobot {
   LL ll;
   YALL yall;
   PhotonVision pv;
+  Camera4237 camera4237;
 
 
   //FIXME select roboRIO, LLHelpers, YALL, or PV usage
@@ -136,13 +137,14 @@ public class Robot extends TimedRobot {
 
   final boolean useLL = false; // do LimeLight processing with LimelightHelpers
 
-  final boolean useYALL = true; // do Limelight processing with YALL
+  final boolean useYALL = false; // do Limelight processing with YALL
 
   final boolean usePV = false; // do PhotonVision processing
 
+  final boolean useCamera4237 = true; // do Camera4237 rpocessing
 
   public Robot() {
-    
+
     if (useRoboRIO)
     {
       switch(selectCameraOption) {
@@ -276,7 +278,16 @@ public class Robot extends TimedRobot {
         yall = new YALL("limelight");
     }
     
-    if (usePV) pv = new PhotonVision();
+    if (usePV)
+    {
+        pv = new PhotonVision();
+    }
+
+    if (useCamera4237)
+    {
+        camera4237 = new Camera4237("limelight");
+        camera4237.setStreamMode_PiPSecondary();
+    }
   }
 
   @Override
@@ -292,7 +303,15 @@ public class Robot extends TimedRobot {
           yall.LLacquire();
       }
 
-      if (usePV) pv.PVacquire();
+      if (usePV)
+      {
+         pv.PVacquire();
+      }
+
+      if (useCamera4237)
+      {
+          camera4237.update();
+      }
 
       //TODO if (useRoboRIO) RoboRIOacquire(); to acquire periodically instead of free-wheeling in thread
       // need synchronized setter and getter for the robotInFieldFrame pose3d list
@@ -458,7 +477,7 @@ public class Robot extends TimedRobot {
     var outlineColor = new Scalar(0, 255, 0); // bgr
     var crossColor = new Scalar(0, 0, 255); // bgr
     var crossLength = 10;
-    Mat mat = new Mat();
+    Mat outImage = new Mat();
     AcquisitionTime acquisitionTime = new AcquisitionTime();
     int latency = 0;
 
@@ -479,7 +498,7 @@ public class Robot extends TimedRobot {
     while (!Thread.interrupted()) {
       double startFrameTime = Timer.getFPGATimestamp();
 
-      AprilTagDetection[] detections = image.getImage(mat, acquisitionTime); // get the buffered image w/ detections
+      AprilTagDetection[] detections = image.getImage(outImage, acquisitionTime); // get the buffered image w/ detections
   
       // have not seen any tags yet
       tags.clear();
@@ -507,7 +526,7 @@ public class Robot extends TimedRobot {
           var j = (i + 1) % 4;
           var pt1 = new Point(detection.getCornerX(i), detection.getCornerY(i));
           var pt2 = new Point(detection.getCornerX(j), detection.getCornerY(j));
-          Imgproc.line(mat, pt1, pt2, outlineColor, 2);
+          Imgproc.line(outImage, pt1, pt2, outlineColor, 2);
           // corners appear as 3 2
           //                   0 1
         }
@@ -524,12 +543,12 @@ public class Robot extends TimedRobot {
         SmartDashboard.putNumber("tag " + detection.getId() + " x angle [deg]", Units.radiansToDegrees(yaw));
         SmartDashboard.putNumber("tag " + detection.getId() + " y angle [deg]", Units.radiansToDegrees(pitch));
 
-        Imgproc.line(mat, new Point(tagCx - crossLength, tagCy), new Point(tagCx + crossLength, tagCy), crossColor, 2);
-        Imgproc.line(mat, new Point(tagCx, tagCy - crossLength), new Point(tagCx, tagCy + crossLength), crossColor, 2);
+        Imgproc.line(outImage, new Point(tagCx - crossLength, tagCy), new Point(tagCx + crossLength, tagCy), crossColor, 2);
+        Imgproc.line(outImage, new Point(tagCx, tagCy - crossLength), new Point(tagCx, tagCy + crossLength), crossColor, 2);
 
         // identify the tag
         Imgproc.putText(
-            mat,
+            outImage,
             Integer.toString(detection.getId()),
             new Point(tagCx + crossLength, tagCy),
             Imgproc.FONT_HERSHEY_SIMPLEX,
@@ -611,7 +630,7 @@ public class Robot extends TimedRobot {
 
               topCornerPoints.add(new Point(x2, y2));
 
-              Imgproc.line(mat,
+              Imgproc.line(outImage,
                   new Point(x1, y1),
                   new Point(x2, y2),
                   outlineColor,
@@ -623,7 +642,7 @@ public class Robot extends TimedRobot {
           ArrayList<MatOfPoint> topCorners = new ArrayList<>();
           topCorners.add(topCornersTemp);
 
-          Imgproc.polylines(mat, topCorners, true, outlineColor, 2);
+          Imgproc.polylines(outImage, topCorners, true, outlineColor, 2);
         } /* end draw a frustum in front of the AprilTag */
 
         /* 
@@ -724,7 +743,7 @@ public class Robot extends TimedRobot {
       // all the data available at this point.
 
       // Give the output stream a new image to display
-      outputStream.putFrame(mat);
+      outputStream.putFrame(outImage);
       double endFrameTime = Timer.getFPGATimestamp();
       SmartDashboard.putNumber("fps", 1./(endFrameTime-startFrameTime));
     }
