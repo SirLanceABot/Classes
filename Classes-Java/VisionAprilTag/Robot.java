@@ -64,6 +64,7 @@ import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.cscore.CvSink;
 import edu.wpi.first.cscore.CvSource;
 import edu.wpi.first.cscore.UsbCamera;
+import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.math.ComputerVisionUtil;
 import edu.wpi.first.math.geometry.CoordinateSystem;
 import edu.wpi.first.math.geometry.Pose3d;
@@ -79,7 +80,9 @@ import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.robot.sensors.CameraLL;
 
+@Logged
 public class Robot extends TimedRobot {
 
     public static final String ANSI_RESET = "\u001B[0m";
@@ -108,8 +111,8 @@ public class Robot extends TimedRobot {
   enum CameraOption{ArduCam320x240, ArduCam1280x800, LifeCam320x240, LifeCam640x480};
 
   private final CameraOption
-  //  selectCameraOption = CameraOption.LifeCam640x480;
-   selectCameraOption = CameraOption.ArduCam1280x800;
+   selectCameraOption = CameraOption.LifeCam640x480;
+  //  selectCameraOption = CameraOption.ArduCam1280x800;
 
   // the roboRIO v1 won't handle more resolution than about 320x240 (not enough cpu).
   // Calibrate the camera at the used resolution or scale Fx,Fy,Cx,Cy proportional
@@ -125,23 +128,25 @@ public class Robot extends TimedRobot {
   MatOfDouble distortionCoeffs;
   public Image image = new Image(); // where a video frame goes for multiple processes to use
 
-  LL ll;
+  LLHelperLance LLHelpers;
   YALL yall;
   PhotonVision pv;
-  Camera4237 camera4237;
+  CameraLL LLLance;
 
 
-  //FIXME select roboRIO, LLHelpers, YALL, or PV usage
+  //FIXME select roboRIO, LLLance, LLHelpers, YALL, or PV usage
 
   final boolean useRoboRIO = false;
 
-  final boolean useLL = false; // do LimeLight processing with LimelightHelpers
+  final boolean usePV = false; // do PhotonVision processing
+
+  final boolean useLLHelpers = true; // do LimeLight processing with LimelightHelpers
 
   final boolean useYALL = false; // do Limelight processing with YALL
 
-  final boolean usePV = false; // do PhotonVision processing
+  final boolean useLLLance = false; // do 1 LimeLight processing with CameraLance/CameraLL
 
-  final boolean useCamera4237 = true; // do Camera4237 rpocessing
+  final String limelightName = "limelight-scoring";
 
   public Robot() {
 
@@ -268,34 +273,32 @@ public class Robot extends TimedRobot {
       visionThread2.start();
     }
 
-    if (useLL)
-    {
-        ll = new LL("limelight");
-    }
+    LLHelpers = useLLHelpers ? new LLHelperLance(limelightName) : null;
  
-    if (useYALL)
-    {
-        yall = new YALL("limelight");
-    }
-    
-    if (usePV)
-    {
-        pv = new PhotonVision();
-    }
+    yall = useYALL ? new YALL(limelightName) : null;
 
-    if (useCamera4237)
+    pv = usePV ? new PhotonVision() : null;
+
+    LLLance = useLLLance ? CameraLL.makeCamera(limelightName) : null;
+
+    if (LLLance != null)
     {
-        camera4237 = new Camera4237("limelight");
-        camera4237.setStreamMode_PiPSecondary();
+        LLLance.setStreamMode_PiPSecondary();
+        // OR
+        LLLance.setStreamMode(CameraLL.StreamMode.External);
+        // OR
+        LLLance.setStreamMode_PiPMain();
     }
   }
 
   @Override
   public void robotPeriodic() // called last in the periodic loop despite always written first in Robot.java
   {
-      if (useLL)
+      if (useLLHelpers)
       {
-          ll.LLacquire();        
+          LimelightHelpers.SetRobotOrientation(limelightName, 0., 0., 0., 0., 0., 0.); // fake test data good for reef 10 & 18
+          LLHelpers.LLacquire();
+          System.out.println(LLHelpers.getTagId() + ", " + LLHelpers.getRobotInField() + ", " + LLHelpers);
       }
 
       if (useYALL)
@@ -308,9 +311,20 @@ public class Robot extends TimedRobot {
          pv.PVacquire();
       }
 
-      if (useCamera4237)
+      if (LLLance != null)
       {
-          camera4237.update();
+          // for MegaTag2 set the robot orientation from the gyro heading and rate.
+          //FIXME get the gyro values somehow but here are zeros for test data - limits what AprilTags make sense
+          LLLance.setRobotOrientation(0., 0., 0., 0., 0., 0.); // good for reef 10 & 18
+          LLLance.update();
+          System.out.println(LLLance);
+          if (LLLance.isFresh())
+          {
+              LLLance.publishPose3d();
+              // data usage for pose estimation
+              // m_poseEstimator.setVisionMeasurementStdDevs(VecBuilder.fill(.7,.7,9999999)); //FIXME need stddev tuning/filtering
+              // m_poseEstimator.addVisionMeasurement(LL1.getPose2d(), LL1.getPoseTime());
+          }
       }
 
       //TODO if (useRoboRIO) RoboRIOacquire(); to acquire periodically instead of free-wheeling in thread
@@ -435,7 +449,7 @@ public class Robot extends TimedRobot {
       if(CustomTagLayout)
         aprilTagFieldLayout = new AprilTagFieldLayout(Filesystem.getDeployDirectory() + "/2024-crescendo.json"); // custom file example
       else
-        aprilTagFieldLayout = AprilTagFieldLayout.loadField(AprilTagFields.k2025Reefscape);
+        aprilTagFieldLayout = AprilTagFieldLayout.loadField(AprilTagFields.kDefaultField);
     } catch (IOException e) {
       e.printStackTrace();
       aprilTagFieldLayout = null;
