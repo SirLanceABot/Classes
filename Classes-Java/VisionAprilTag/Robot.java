@@ -76,6 +76,8 @@ import edu.wpi.first.networktables.IntegerArrayPublisher;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructPublisher;
+import edu.wpi.first.wpilibj.DataLogManager;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
@@ -111,8 +113,8 @@ public class Robot extends TimedRobot {
   enum CameraOption{ArduCam320x240, ArduCam1280x800, LifeCam320x240, LifeCam640x480};
 
   private final CameraOption
-   selectCameraOption = CameraOption.LifeCam640x480;
-  //  selectCameraOption = CameraOption.ArduCam1280x800;
+  //  selectCameraOption = CameraOption.LifeCam640x480;
+   selectCameraOption = CameraOption.ArduCam1280x800;
 
   // the roboRIO v1 won't handle more resolution than about 320x240 (not enough cpu).
   // Calibrate the camera at the used resolution or scale Fx,Fy,Cx,Cy proportional
@@ -146,10 +148,12 @@ public class Robot extends TimedRobot {
 
   final boolean useLLLance = false; // do 1 LimeLight processing with CameraLance/CameraLL
 
-  final String limelightName = "limelight-scoring";
+  final String limelightName = "limelight";
 
   public Robot() {
 
+    dataLogConfig();
+    
     if (useRoboRIO)
     {
       switch(selectCameraOption) {
@@ -296,9 +300,10 @@ public class Robot extends TimedRobot {
   {
       if (useLLHelpers)
       {
-          LimelightHelpers.SetRobotOrientation(limelightName, 0., 0., 0., 0., 0., 0.); // fake test data good for reef 10 & 18
+          // LimelightHelpers.SetRobotOrientation(limelightName, 0., 0., 0., 0., 0., 0.); // fake test data good for reef 10 & 18
           LLHelpers.LLacquire();
-          System.out.println(LLHelpers.getTagId() + ", " + LLHelpers.getRobotInField() + ", " + LLHelpers);
+          // System.out.println(LLHelpers.getTagId() + ", " + LLHelpers.getRobotInField() + ", " + LLHelpers);
+
       }
 
       if (useYALL)
@@ -334,6 +339,25 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic() {}
 
+  public static void dataLogConfig()
+  {
+      DataLogManager.start(); // default is log all NT
+
+      // DataLogManager.logNetworkTables(false);
+      // var dataLog = DataLogManager.getLog();
+      // var networkTableInstance = NetworkTableInstance.getDefault();
+      // DriverStation.startDataLog(dataLog, true);
+      // networkTableInstance.startEntryDataLog(dataLog, "/FMSInfo", "NT:/FMSInfo");
+      // networkTableInstance.startEntryDataLog(dataLog, "/" + Constants.NETWORK_TABLE_NAME, "NT:/" + Constants.NETWORK_TABLE_NAME);
+      // networkTableInstance.startEntryDataLog(dataLog, "/" + Constants.ADVANTAGE_SCOPE_TABLE_NAME, "NT:/" + Constants.ADVANTAGE_SCOPE_TABLE_NAME);
+      // networkTableInstance.startEntryDataLog(dataLog, "/" + Constants.Camera.CAMERA_1_BOT_POSE, "NT:/" + Constants.Camera.CAMERA_1_BOT_POSE);
+      // networkTableInstance.startEntryDataLog(dataLog, "/" + Constants.Camera.CAMERA_2_BOT_POSE, "NT:/" + Constants.Camera.CAMERA_2_BOT_POSE);
+      // networkTableInstance.startEntryDataLog(dataLog, "/SmartDashboard", "NT:/SmartDashboard");
+      // networkTableInstance.startEntryDataLog(dataLog, "/Shuffleboard", "NT:/Shuffleboard");
+      // networkTableInstance.startEntryDataLog(dataLog, "/LiveWindow", "NT:/LiveWindow");
+      // networkTableInstance.startConnectionDataLog(dataLog, "NTConnection");
+  }
+
   /////////////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////////////////
@@ -361,9 +385,10 @@ public class Robot extends TimedRobot {
     var detector = new AprilTagDetector();
 
     // look for tag36h11 2025, correct 0 or 1 error bits on roboRIO v1 or up to 2 on roboRIO v2
+    // error correction is a memory hog so Simulator mode on a PC can go higher but a roboRIO cannot
     detector.addFamily("tag36h11", 2);
 
-    // 2025 beta 1 & 2 had 300 default which is too large to be useful so use 2024 value of 5
+    // 2025 has 300 default which is too large to be useful so use 2024 value of 5
     QuadThresholdParameters qtp = detector.getQuadThresholdParameters();
     qtp.minClusterPixels = 5;
     // qtp.criticalAngle = 10 * Math.PI / 180.0; // also changed in 2025 beta 1 for unknown reasons

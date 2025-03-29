@@ -4,8 +4,11 @@ import static edu.wpi.first.units.Units.Milliseconds;
 import static edu.wpi.first.units.Units.Seconds;
 
 import edu.wpi.first.epilogue.Logged;
+import edu.wpi.first.math.geometry.CoordinateSystem;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
+import edu.wpi.first.math.geometry.Rotation3d;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.DoubleArraySubscriber;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
@@ -172,7 +175,67 @@ public class LLHelperLance {
       }
 
       publishRobotPose.set(robotInField);
+      
+      /**
+       * Get the LL Target Pose in Robot Space and convert orientation and directions from EDN to NWU
+       * This concept is poorly conceived as while correct for the target moving with respect to the robot
+       * that is ridiculous and in general hard to work with especially for the rotations because
+       * it's the robot that moves not the target AprilTag
+       * 
+       * In other words don't do it this way - use the normal field usage and have the robot move not the target.
+       */
+      var tagInRobotFrameEDN = LimelightHelpers.getTargetPose3d_RobotSpace(LLname);
+      var tagInRobotFrameTemp = CoordinateSystem.convert(tagInRobotFrameEDN, CoordinateSystem.EDN(), CoordinateSystem.NWU());
+
+      // adjust rotations to come out right - why didn't they convert right? Because we shouldn't do it this way?
+      // this is target facing the robot and moving wrt to robot in normal WPILib field orientations
+      // but the target moving wrt the robot is NOT normal thinking and the tag facing the robot should be
+      // indicated by a Pi rotation. All this trickery is confusing - don't do it this way!
+      var tagInRobotFrame = new Pose3d(
+        tagInRobotFrameTemp.getTranslation(),
+        new Rotation3d(
+          tagInRobotFrameTemp.getRotation().getY(), // flip X and Y but why?
+          -tagInRobotFrameTemp.getRotation().getX() - Math.PI/2.,
+          tagInRobotFrameTemp.getRotation().getZ() +
+             (tagInRobotFrameTemp.getRotation().getZ() < Math.PI/2. ? - Math.PI - Math.PI/2. : 0.0)));
+
+      System.out.format("EDN T:%.2f, %.2f, %.2f, R:%.2f, %.2f, %.2f",
+        tagInRobotFrameEDN.getTranslation().getX(),
+        tagInRobotFrameEDN.getTranslation().getY(),
+        tagInRobotFrameEDN.getTranslation().getZ(),
+        Units.radiansToDegrees(tagInRobotFrameEDN.getRotation().getX()), // pitch
+        Units.radiansToDegrees(tagInRobotFrameEDN.getRotation().getY()), // yaw
+        Units.radiansToDegrees(tagInRobotFrameEDN.getRotation().getZ())); // roll
         
+      System.out.format(" NWU Temp T:%.2f, %.2f, %.2f, R:%.2f, %.2f, %.2f",
+        tagInRobotFrameTemp.getTranslation().getX(),
+        tagInRobotFrameTemp.getTranslation().getY(),
+        tagInRobotFrameTemp.getTranslation().getZ(),
+        Units.radiansToDegrees(tagInRobotFrameTemp.getRotation().getX()),
+        Units.radiansToDegrees(tagInRobotFrameTemp.getRotation().getY()),
+        Units.radiansToDegrees(tagInRobotFrameTemp.getRotation().getZ()));
+
+      System.out.format(" NWU R adjust T:%.2f, %.2f, %.2f, R:%.2f, %.2f, %.2f%n%n",
+        tagInRobotFrame.getTranslation().getX(),
+        tagInRobotFrame.getTranslation().getY(),
+        tagInRobotFrame.getTranslation().getZ(),
+        Units.radiansToDegrees(tagInRobotFrame.getRotation().getX()), // roll
+        Units.radiansToDegrees(tagInRobotFrame.getRotation().getY()), // pitch
+        Units.radiansToDegrees(tagInRobotFrame.getRotation().getZ())); // yaw
+/*
+The adjusted NWU numbers match the LL EDN view except some signs are negated to maintain the WPILib standard NWU
+except it's silly to think about the Tag moving around the robot.
+EDN T:0.07, -0.07, 1.09, R:-14.04, -12.59, 1.00 NWU T:1.09, -0.07, 0.07, R:-103.82, 0.97, -77.41 NWU R adjust T:1.09, -0.07, 0.07, R:0.97, 13.82, 12.59
+
+EDN T:0.12, -0.10, 1.08, R:-13.66, -9.83, -1.08 NWU T:1.08, -0.12, 0.10, R:-103.84, -1.06, -80.17 NWU R adjust T:1.08, -0.12, 0.10, R:-1.06, 13.84, 9.83
+
+EDN T:0.21, -0.18, 1.05, R:-10.68, -3.28, -5.20 NWU T:1.05, -0.21, 0.18, R:-100.97, -5.19, -86.71 NWU R adjust T:1.05, -0.21, 0.18, R:-5.19, 10.97, 3.29
+
+EDN T:0.27, -0.23, 1.01, R:-9.44, 0.96, -9.03 NWU T:1.01, -0.27, 0.23, R:-99.28, -9.03, -90.98 NWU R adjust T:1.01, -0.27, 0.23, R:-9.03, 9.28, -0.98
+
+EDN T:0.30, -0.26, 0.98, R:-8.75, 3.49, -11.49 NWU T:0.98, -0.30, 0.26, R:-98.04, -11.47, -93.56 NWU R adjust T:0.98, -0.30, 0.26, R:-11.47, 8.04, -3.56
+*/
+
       // // testing - post to smart dashboard periodically
       // tx = stats.value[4];
       // ty = stats.value[5];
