@@ -7,6 +7,7 @@ import edu.wpi.first.epilogue.Logged;
 import edu.wpi.first.math.geometry.CoordinateSystem;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.DoubleArraySubscriber;
@@ -175,7 +176,16 @@ public class LLHelperLance {
       }
 
       publishRobotPose.set(robotInField);
-      
+
+      // var robotInTagFrame = LimelightHelpers.getBotPose3d_TargetSpace(LLname);
+      // System.out.format("RobotInTagSpace EDN T:%.2f, %.2f, %.2f, R:%.2f, %.2f, %.2f%n",
+      //   robotInTagFrame.getTranslation().getX(),
+      //   robotInTagFrame.getTranslation().getY(),
+      //   robotInTagFrame.getTranslation().getZ(),
+      //   Units.radiansToDegrees(robotInTagFrame.getRotation().getX()), // pitch
+      //   Units.radiansToDegrees(robotInTagFrame.getRotation().getY()), // yaw
+      //   Units.radiansToDegrees(robotInTagFrame.getRotation().getZ())); // roll
+
       /**
        * Get the LL Target Pose in Robot Space and convert orientation and directions from EDN to NWU
        * This concept is poorly conceived as while correct for the target moving with respect to the robot
@@ -198,30 +208,37 @@ public class LLHelperLance {
           -tagInRobotFrameTemp.getRotation().getX() - Math.PI/2.,
           tagInRobotFrameTemp.getRotation().getZ() +
              (tagInRobotFrameTemp.getRotation().getZ() < Math.PI/2. ? - Math.PI - Math.PI/2. : 0.0)));
+      var tagInRobotFrame2D = new Pose2d( tagInRobotFrame.getX(), tagInRobotFrame.getY(), new Rotation2d(tagInRobotFrame.getRotation().getZ()));
+      var robotPoseTagRelativeNWU = new Pose2d(-tagInRobotFrame2D.getX(), -tagInRobotFrame2D.getY(), tagInRobotFrame2D.getRotation().unaryMinus());
+      System.out.println("robot pose to target NWU " + robotPoseTagRelativeNWU);
+      // System.out.println(tagInRobotFrame2D);
+      // Pose2d(Translation2d(X: 0.75, Y: 0.24), Rotation2d(Rads: 0.14, Deg: 7.95))
+      // Pose2d(Translation2d(X: 0.74, Y: 0.27), Rotation2d(Rads: 0.17, Deg: 9.72))
+      // Pose2d(Translation2d(X: 0.70, Y: 0.31), Rotation2d(Rads: 0.02, Deg: 0.95))
 
-      System.out.format("EDN T:%.2f, %.2f, %.2f, R:%.2f, %.2f, %.2f",
-        tagInRobotFrameEDN.getTranslation().getX(),
-        tagInRobotFrameEDN.getTranslation().getY(),
-        tagInRobotFrameEDN.getTranslation().getZ(),
-        Units.radiansToDegrees(tagInRobotFrameEDN.getRotation().getX()), // pitch
-        Units.radiansToDegrees(tagInRobotFrameEDN.getRotation().getY()), // yaw
-        Units.radiansToDegrees(tagInRobotFrameEDN.getRotation().getZ())); // roll
+      // System.out.format("EDN T:%.2f, %.2f, %.2f, R:%.2f, %.2f, %.2f",
+      //   tagInRobotFrameEDN.getTranslation().getX(),
+      //   tagInRobotFrameEDN.getTranslation().getY(),
+      //   tagInRobotFrameEDN.getTranslation().getZ(),
+      //   Units.radiansToDegrees(tagInRobotFrameEDN.getRotation().getX()), // pitch
+      //   Units.radiansToDegrees(tagInRobotFrameEDN.getRotation().getY()), // yaw
+      //   Units.radiansToDegrees(robotInTagFrame.getRotation().getZ())); // roll
         
-      System.out.format(" NWU Temp T:%.2f, %.2f, %.2f, R:%.2f, %.2f, %.2f",
-        tagInRobotFrameTemp.getTranslation().getX(),
-        tagInRobotFrameTemp.getTranslation().getY(),
-        tagInRobotFrameTemp.getTranslation().getZ(),
-        Units.radiansToDegrees(tagInRobotFrameTemp.getRotation().getX()),
-        Units.radiansToDegrees(tagInRobotFrameTemp.getRotation().getY()),
-        Units.radiansToDegrees(tagInRobotFrameTemp.getRotation().getZ()));
+      // System.out.format(" NWU Temp T:%.2f, %.2f, %.2f, R:%.2f, %.2f, %.2f",
+      //   tagInRobotFrameTemp.getTranslation().getX(),
+      //   tagInRobotFrameTemp.getTranslation().getY(),
+      //   tagInRobotFrameTemp.getTranslation().getZ(),
+      //   Units.radiansToDegrees(tagInRobotFrameTemp.getRotation().getX()),
+      //   Units.radiansToDegrees(tagInRobotFrameTemp.getRotation().getY()),
+      //   Units.radiansToDegrees(tagInRobotFrameTemp.getRotation().getZ()));
 
-      System.out.format(" NWU R adjust T:%.2f, %.2f, %.2f, R:%.2f, %.2f, %.2f%n%n",
-        tagInRobotFrame.getTranslation().getX(),
-        tagInRobotFrame.getTranslation().getY(),
-        tagInRobotFrame.getTranslation().getZ(),
-        Units.radiansToDegrees(tagInRobotFrame.getRotation().getX()), // roll
-        Units.radiansToDegrees(tagInRobotFrame.getRotation().getY()), // pitch
-        Units.radiansToDegrees(tagInRobotFrame.getRotation().getZ())); // yaw
+      // System.out.format(" NWU R adjust T:%.2f, %.2f, %.2f, R:%.2f, %.2f, %.2f%n",
+      //   tagInRobotFrame.getTranslation().getX(),
+      //   tagInRobotFrame.getTranslation().getY(),
+      //   tagInRobotFrame.getTranslation().getZ(),
+      //   Units.radiansToDegrees(tagInRobotFrame.getRotation().getX()), // roll
+      //   Units.radiansToDegrees(tagInRobotFrame.getRotation().getY()), // pitch
+      //   Units.radiansToDegrees(tagInRobotFrame.getRotation().getZ())); // yaw
 /*
 The adjusted NWU numbers match the LL EDN view except some signs are negated to maintain the WPILib standard NWU
 except it's silly to think about the Tag moving around the robot.
