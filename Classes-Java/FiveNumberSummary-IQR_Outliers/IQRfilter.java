@@ -3,7 +3,7 @@ Five Number Summary of a set of data and Interquartile Range (IQR) based outlier
 
 Quantiles are the set of values/points that divides the dataset into groups of equal size.
 
-if 4 parts, then they are quartiles
+If 4 groups, then they are quartiles.
 In descriptive statistics, the interquartile range (IQR) tells you the spread of the middle half of
 your distribution.
 
@@ -13,16 +13,20 @@ equal parts, each part comprising one quarter of the amount of data.
 Q1 is defined as the middle value between the smallest value and the median of the data set.
 Q2 is the median of the data.
 Q3 is the middle value between the median and the highest value of the data set.
+Note that for an odd number of values the median value is used twice - once for Q1 and for Q3. This
+is the inclusive method. (If the exclusive method is used and the number of values is odd, the
+median value is not used - the values adjacent to the median are used.)
+Note that for an even number of values the median value of the complete set of values is the average
+of the two central values but that is not used for the IQR calculation. The two central values are
+considered the medians for determining Q1 and Q3.
+For this program consider the minimum value as Q0 and the maximum value as Q4 (thus 5 numbers).
 
 The interquartile range, IQR, tells us the range where the bulk of the values lie.
 The interquartile range is calculated by subtracting the first quartile from the third quartile. 
 IQR = Q3 - Q1
 
-https://levelup.gitconnected.com/how-to-easily-forecast-the-stock-price-probabilities-time-series-using-iqr-interquartile-range-9d97dafd5a32
-https://en.wikipedia.org/wiki/Interquartile_range
-
 Uses 
-1. Unlike range, IQR tells where the majority of data lies and is thus preferred over range. 
+1. Unlike range, IQR tells where the majority of data lies and is thus may be preferred over range.
 2. IQR can be used to identify outliers in a data set (values that are too far out of the IQR). 
 3. Gives the central tendency of the data. 
 
@@ -32,36 +36,23 @@ The data set after being sorted is
 1, 2, 5, 6, 7, 9, 12, 15, 18, 19, 27
 As mentioned above Q2 is the median of the data. 
 Hence Q2 = 9
-Q1 is the median of lower half, taking Q2 as pivot.
-So Q1 = 5
-Q3 is the median of upper half talking Q2 as pivot. 
-So Q3 = 18
-Therefore IQR for given data = Q3-Q1 = 18-5 = 13
-*/
+Q1 is the median of lower half.
+So Q1 = 5.5
+Q3 is the median of upper half. 
+So Q3 = 16.5
+Therefore IQR for the given data = Q3 - Q1 = 16.5 - 5.5 = 11
 
-/*
- * based on github jbosstm  narayana
- * 
- * JBoss, Home of Professional Open Source.
- * Copyright 2014 Red Hat, Inc., and individual contributors
- * as indicated by the @author tags. See the copyright.txt file in the
- * distribution for a full listing of individual contributors.
- *
- * This is free software; you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * This software is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this software; if not, write to the Free
- * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
- */
+Example:
+Data: 12, 9, 6, 5, 2, 26
+The data set after being sorted is
+2, 5, 6, 9, 12, 26
+Q2 is the median of the complete data set Hence Q2 = (6 + 9)/2 = 7.5
+But since the number is values is even, Q1 is based off of the lower central value of 6 and the
+Q3 is based off of the upper central value of 9.
+So Q1 = 5
+So Q3 = 12
+Therefore the IQR for the given data = Q3 - Q1 = 12 - 5 = 7 
+*/
 
  import java.util.ArrayList;
  import java.util.Arrays;
@@ -70,14 +61,14 @@ Therefore IQR for given data = Q3-Q1 = 18-5 = 13
 /**
  * Class Usage:
  * 
- * <p>Compute the Five Number Summary:
+ * <p>Compute the Five Number Summary (minimum (Q0), Q1, median (Q2), Q3, maximum (Q4)):
  * <p>             IQRfilter.fiveNumberSummary(data)
  * 
  * <p>Find outliers in data:
  * <p>             IQRfilter.findOutliers(data, outlierRangeMultiplier)
  * 
  * <p>Remove outliers in time series data:
- * <p>             IQRfilter smoother = new IQRfilter(windowSize, threshold);
+ * <p>             IQRfilter smoother = new IQRfilter(windowSize, outlierRangeMultiplier);
  * <p>             smoother.calculate(element));
  * 
  * <p>Other methods available:
@@ -90,32 +81,37 @@ Therefore IQR for given data = Q3-Q1 = 18-5 = 13
  * <p>             dumpData()
  * <p>             main()
  * <p>
- * <p>This class needs to be instantiated only for the running window outlier/smoother function.
+ * <p>This class must be instantiated only for the running window outlier/smoother function.
  * <Methods for FNS and IQR calculations are static thus no instantiation needed.
  */
 
-public class IQRfilter {
-
+public class IQRfilter
+{
     private int n; // window size - number of elements in the running window
     private double[] y; // window data storage
     private double threshold; // IQR multiplier to set outlier threshold
 
     /**
      * 
-     * @param WindowSize 4 is a good min; more like 9 would be slow to accept a step change and maybe quicker to find a spike
-     * @param threshold 1.5 is typical; 3.0 rejects only extreme outliers
+     * @param WindowSize 4 is a good min; more like 9 would be slow to accept a step change and
+     *                   maybe quicker to find a spike
+     * @param outlierRangeMultiplier 1.5 is typical; 3.0 rejects only extreme outliers
      */
-    public IQRfilter(int WindowSize, double threshold)
+    public IQRfilter(int WindowSize, double outlierRangeMultiplier)
     {
         this.n = WindowSize;
-        this.threshold = threshold;
+        this.threshold = outlierRangeMultiplier;
         this.y = new double[WindowSize]; // y here will be the sensor data history [0] the oldest
-        for (int i = 0; i < this.y.length; i++) this.y[i] = Double.NaN;
+        for (int i = 0; i < this.y.length; i++)
+        {
+            this.y[i] = Double.NaN;
+        }
     }
 
     /**
      * An outlier is any data point typically more than 1.5 interquartile ranges (IQRs)
-     * below the first quartile or above the third quartile.
+     * below the first quartile or above the third quartile. The IQR multiplier is specified in
+     * the class constructor.
      * 
      * <p>This method determines if the most recent point is a data outlier based on IQR of the
      * current window of data and returns either the original value if not an outlier or the 3rd
@@ -123,7 +119,7 @@ public class IQRfilter {
      * 
      * <p>Thus it's a sort of spike remover or smoothing method.
      * 
-     * <p>This is a little different than typical implementations that return a set of outliers
+     * <p>This is a little different than the static method that returns a set of outliers
      * from the set of all data points. The result of selecting outliers from the entire set
      * of points uses all the data for the determination. Checking only the last point for
      * outlier does not take advantage of future data that could result in a different outcome.
@@ -166,11 +162,12 @@ public class IQRfilter {
     }
 
     /**
-     * q1 value
+     * q1 value (inclusive method - median value used if odd number of values)
      * @param values
      * @return q1 value
      */
-    static double getQ1(double[] values) {
+    static double getQ1(double[] values)
+    {
         int sz = values.length;
 
         if (sz == 1)
@@ -178,21 +175,24 @@ public class IQRfilter {
         else if (sz % 2 == 0)
             return getMedian(values, 0, sz / 2 - 1);
         else
-            return getMedian(values, 0, sz / 2 - 1);
+            return getMedian(values, 0, sz / 2);
     }
 
     /**
-     * Median value between two elements of the data array
+     * Median value
      * @param values
      * @param from
      * @param to
-     * @return
+     * @return median value - center value if odd number of values or average of two central values if even number of values
      */
-    static double getMedian(double[] values, int from, int to) {
+    static double getMedian(double[] values, int from, int to)
+    {
         int sz = to - from + 1;
 
         if (sz % 2 == 0)
-             return (values[from + sz/2] + values[from + (sz/2) - 1] ) / 2;
+        {
+            return (values[from + sz/2] + values[from + (sz/2) - 1] ) / 2.;
+        }
         else
             return values[from + (sz / 2)];
     }
@@ -202,35 +202,33 @@ public class IQRfilter {
       * @param values
       * @return average of values
       */
-      static double getAverage(double[] values) {
+      static double getAverage(double[] values)
+      {
         double tot = 0;
 
         for (double d : values)
-            tot += d;
-
+        {
+            tot += d;            
+        }
         return tot / values.length;
     }
 
     /**
-     * q3 value
+     * q3 value (inclusive method - median value used if odd number of values)
      * @param values
      * @return q3 value
      */
-    static double getQ3(double[] values) {
+    static double getQ3(double[] values)
+    {
         int sz = values.length;
 
         if (sz == 1)
-            return values[0];
-        else if (sz % 2 == 0)
-            return getMedian(values, sz / 2, sz - 1);
-        else
-            return getMedian(values, sz / 2 + 1, sz - 1);
+        {
+            return values[0];            
+        }
+        // same calculation for odd and even numbers because using the inclusive method
+        return getMedian(values, sz / 2, sz - 1);
     }
-
-    /**
-     * Test main - example usage of five number summary of data and IQR based outliers
-     * @param args - not used
-     */
 
     /**
      * Five Number Summary of the data
@@ -252,14 +250,15 @@ public class IQRfilter {
      * An outlier is any data point typically more than 1.5 interquartile ranges (IQRs)
      * below the first quartile or above the third quartile.
      *
-     * CAUTION - input data modified upon return
+     * CAUTION - input data modified (sorted ascending) upon return
      *
-     * @param values - input data but MODIFIED - returned in ascending sorted order
-     * @param outlierRangeMultiplier - criterion multiplies IQR
+     * @param values - input data but MODIFIED upon return in ascending sorted order
+     * @param outlierRangeMultiplier - criterion multiplies IQR;
      *          typical values are 1.5=>outlier 3.0=>extreme outlier
      * @return array of outliers of the input values based on input param outlierRangeMultiplier
      */
-    static double[] findOutliers(double[] values, double outlierRangeMultiplier) {
+    static double[] findOutliers(double[] values, double outlierRangeMultiplier)
+    {
         ArrayList<Double> outlierList = new ArrayList<Double>();
         double[] fns = fiveNumberSummary(values);
         double iqr = getIQR(fns);
@@ -270,7 +269,9 @@ public class IQRfilter {
         for(var value:values)
         {
             if (value < lb || value > ub)
-                outlierList.add(value);
+            {
+                outlierList.add(value);                
+            }
         }
         double[] outliers = outlierList.stream().mapToDouble(i -> i).toArray();
         return outliers;
@@ -281,8 +282,9 @@ public class IQRfilter {
      * @param fns Five Number Summary array
      * @return IQR of FNS, q3-q1
      */
-    static double getIQR(double[] fns) {
-    return fns[3] - fns[1];
+    static double getIQR(double[] fns)
+    {
+        return fns[3] - fns[1];
     }
 
     /**
@@ -290,9 +292,10 @@ public class IQRfilter {
      * @param fns Five Number Summary array
      * @return formatted string
      */
-    static String dumpFnsIqr(double[] fns) {
-    return String.format("Five Number Summary:[min(q0)=%f, q1=%f, median(q2)=%f, q3=%f, max(q4)=%f]%nInterquartile Range=%f",
-        fns[0], fns[1], fns[2], fns[3], fns[4], getIQR(fns));
+    static String dumpFnsIqr(double[] fns)
+    {
+        return String.format("Five Number Summary:[min(q0)=%f, q1=%f, median(q2)=%f, q3=%f, max(q4)=%f]%nInterquartile Range=%f",
+            fns[0], fns[1], fns[2], fns[3], fns[4], getIQR(fns));
     }
 
     /**
@@ -300,18 +303,19 @@ public class IQRfilter {
      * @param array
      * @return formatted string
      */
-    static String dumpData(double[] array) {
-    return Arrays.stream(array)
-        .mapToObj(i -> String.format("%f", i))
-        .collect(Collectors.joining(", ", "[", "]"));
+    static String dumpData(double[] array)
+    {
+        return Arrays.stream(array)
+            .mapToObj(i -> String.format("%f", i))
+            .collect(Collectors.joining(", ", "[", "]"));
     }
 
-    public static void main(String[] args) {
- 
-        /**
-        * Test main - example usage of five number summary of data and IQR based outliers
-        * @param args - not used
-        */
+    /**
+    * Test main - example usage of five number summary of data and IQR based outliers
+    * @param args - not used
+    */
+    public static void main(String[] args)
+    {
         double[][] tests = {
           { 1., 19., 7., 6., 5., 9., 12., 27., 18., 2., 15. },
           { 1., 200.0, 5.0, 6.0, 9.0, 12.0, -200.0 },
@@ -324,7 +328,8 @@ public class IQRfilter {
         };
       
         // run all tests - batches of data   
-        for (double[] test : tests) {
+        for (double[] test : tests)
+        {
             // Input test data
             System.out.println("\n\nInput:" + IQRfilter.dumpData(test));
 
@@ -342,23 +347,25 @@ public class IQRfilter {
         double threshold = 1.5;
         IQRfilter smoother = new IQRfilter(windowSize, threshold);
         for (double[] test : tests)
-        for (double element : test)
         {
-            System.out.println(element + " -> " + smoother.calculate(element));
+            for (double element : test)
+            {
+                System.out.println(element + " -> " + smoother.calculate(element));
+            }            
         }
     }
 }
 /*
 
 Input:[1.000000, 19.000000, 7.000000, 6.000000, 5.000000, 9.000000, 12.000000, 27.000000, 18.000000, 2.000000, 15.000000]
-Five Number Summary:[min(q0)=1.000000, q1=5.000000, median(q2)=9.000000, q3=18.000000, max(q4)=27.000000]
-Interquartile Range=13.000000
+Five Number Summary:[min(q0)=1.000000, q1=5.500000, median(q2)=9.000000, q3=16.500000, max(q4)=27.000000]
+Interquartile Range=11.000000
 IQR Outliers:[]
 
 
 Input:[1.000000, 200.000000, 5.000000, 6.000000, 9.000000, 12.000000, -200.000000]
-Five Number Summary:[min(q0)=-200.000000, q1=1.000000, median(q2)=6.000000, q3=12.000000, max(q4)=200.000000]
-Interquartile Range=11.000000
+Five Number Summary:[min(q0)=-200.000000, q1=3.000000, median(q2)=6.000000, q3=10.500000, max(q4)=200.000000]
+Interquartile Range=7.500000
 IQR Outliers:[-200.000000, 200.000000]
 
 
@@ -387,8 +394,8 @@ IQR Outliers:[]
 
 
 Input:[20.000000, 25.000000, 42.000000]
-Five Number Summary:[min(q0)=20.000000, q1=20.000000, median(q2)=25.000000, q3=42.000000, max(q4)=42.000000]
-Interquartile Range=22.000000
+Five Number Summary:[min(q0)=20.000000, q1=22.500000, median(q2)=25.000000, q3=33.500000, max(q4)=42.000000]
+Interquartile Range=11.000000
 IQR Outliers:[]
 
 
