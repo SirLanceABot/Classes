@@ -146,7 +146,7 @@ public class IQRfilter
             // System.out.printf("min(q0)=%f q1=%f median(q2)=%f q3=%f max(q4)=%f IQR=%f%n",
             // fns[0], fns[1], fns[2], fns[3], fns[4], getIQR(fns));
 
-            double iqr = getIQR(fns); // positive since data sorted ascending
+            double iqr = getIQR(fns);
             double outlierBoundary = threshold * iqr;
             double lb = fns[1] - outlierBoundary;
             double ub = fns[3] + outlierBoundary;
@@ -232,6 +232,8 @@ public class IQRfilter
 
     /**
      * Five Number Summary of the data
+     * 
+     * <p>CAUTION - input data modified (sorted ascending) upon return
      * @param values - input data but MODIFIED - returned in ascending sorted order
      * @return min(q0), q1, median(q2), q3, max(q4) [the FNS array]
      */
@@ -250,7 +252,7 @@ public class IQRfilter
      * An outlier is any data point typically more than 1.5 interquartile ranges (IQRs)
      * below the first quartile or above the third quartile.
      *
-     * CAUTION - input data modified (sorted ascending) upon return
+     * <p>CAUTION - input data modified (sorted ascending) upon return
      *
      * @param values - input data but MODIFIED upon return in ascending sorted order
      * @param outlierRangeMultiplier - criterion multiplies IQR;
@@ -280,7 +282,7 @@ public class IQRfilter
     /**
      * Interquartile range getter
      * @param fns Five Number Summary array
-     * @return IQR of FNS, q3-q1
+     * @return IQR of FNS, q3-q1 (a positive number or 0)
      */
     static double getIQR(double[] fns)
     {
@@ -317,6 +319,8 @@ public class IQRfilter
     public static void main(String[] args)
     {
         double[][] tests = {
+          { -80., -90., -100., -110., -120., -130., -300.},
+          { -100., -110., -120., -130., -200., -30.2, -2.},
           { 1., 19., 7., 6., 5., 9., 12., 27., 18., 2., 15. },
           { 1., 200.0, 5.0, 6.0, 9.0, 12.0, -200.0 },
           { 12.0, 9.0, 6.0, 5.0, 2.0, 26.0 },
@@ -326,25 +330,30 @@ public class IQRfilter
           { 20., 25., 42.},
           { 90., 87., 80., 65.}
         };
-      
-        // run all tests - batches of data   
+    
+
+        // run all tests - batches of data; data are sorted for IQR processing
         for (double[] test : tests)
         {
+            var data = Arrays.copyOf(test, test.length); // protect test data from the IQR sort so they can be used again in other tests
+
             // Input test data
-            System.out.println("\n\nInput:" + IQRfilter.dumpData(test));
+            System.out.println("\n\nInput:" + IQRfilter.dumpData(data));
 
             // Sorted data and FiveNumberSummary of the data and IQR
-            var fns = IQRfilter.fiveNumberSummary(test);
+            var fns = IQRfilter.fiveNumberSummary(data);
             System.out.println(IQRfilter.dumpFnsIqr(fns));
 
             // IQR outliers
-            var outliers = IQRfilter.findOutliers(test, 1.5);
-            System.out.println("IQR Outliers:" + IQRfilter.dumpData(outliers));
+            var outlierRangeMultiplier = 1.5;
+            var outliers = IQRfilter.findOutliers(data, outlierRangeMultiplier);
+            System.out.println("IQR Outliers with range multiplier of " + outlierRangeMultiplier + IQRfilter.dumpData(outliers));
         }
 
         // run a test simulating a series of real-time stream of data
         int windowSize = 6;
         double threshold = 1.5;
+        System.out.println("\n\nfilter data stream with window size " + windowSize + ", outlier range multiplier " + threshold);
         IQRfilter smoother = new IQRfilter(windowSize, threshold);
         for (double[] test : tests)
         {
@@ -357,75 +366,104 @@ public class IQRfilter
 }
 /*
 
+Input:[-80.000000, -90.000000, -100.000000, -110.000000, -120.000000, -130.000000, -300.000000]
+Five Number Summary:[min(q0)=-300.000000, q1=-125.000000, median(q2)=-110.000000, q3=-95.000000, max(q4)=-80.000000]
+Interquartile Range=30.000000
+IQR Outliers with range multiplier of 1.5[-300.000000]
+
+
+Input:[-100.000000, -110.000000, -120.000000, -130.000000, -200.000000, -30.200000, -2.000000]
+Five Number Summary:[min(q0)=-200.000000, q1=-125.000000, median(q2)=-110.000000, q3=-65.100000, max(q4)=-2.000000]
+Interquartile Range=59.900000
+IQR Outliers with range multiplier of 1.5[]
+
+
 Input:[1.000000, 19.000000, 7.000000, 6.000000, 5.000000, 9.000000, 12.000000, 27.000000, 18.000000, 2.000000, 15.000000]
 Five Number Summary:[min(q0)=1.000000, q1=5.500000, median(q2)=9.000000, q3=16.500000, max(q4)=27.000000]
 Interquartile Range=11.000000
-IQR Outliers:[]
+IQR Outliers with range multiplier of 1.5[]
 
 
 Input:[1.000000, 200.000000, 5.000000, 6.000000, 9.000000, 12.000000, -200.000000]
 Five Number Summary:[min(q0)=-200.000000, q1=3.000000, median(q2)=6.000000, q3=10.500000, max(q4)=200.000000]
 Interquartile Range=7.500000
-IQR Outliers:[-200.000000, 200.000000]
+IQR Outliers with range multiplier of 1.5[-200.000000, 200.000000]
 
 
 Input:[12.000000, 9.000000, 6.000000, 5.000000, 2.000000, 26.000000]
 Five Number Summary:[min(q0)=2.000000, q1=5.000000, median(q2)=7.500000, q3=12.000000, max(q4)=26.000000]
 Interquartile Range=7.000000
-IQR Outliers:[26.000000]
+IQR Outliers with range multiplier of 1.5[26.000000]
 
 
 Input:[1.000000, 3.000000, 4.000000, 5.000000, 5.000000, 6.000000, 7.000000, 11.000000]
 Five Number Summary:[min(q0)=1.000000, q1=3.500000, median(q2)=5.000000, q3=6.500000, max(q4)=11.000000]
 Interquartile Range=3.000000
-IQR Outliers:[]
+IQR Outliers with range multiplier of 1.5[]
 
 
 Input:[2.000000]
 Five Number Summary:[min(q0)=2.000000, q1=2.000000, median(q2)=2.000000, q3=2.000000, max(q4)=2.000000]
 Interquartile Range=0.000000
-IQR Outliers:[]
+IQR Outliers with range multiplier of 1.5[]
 
 
 Input:[20.000000, 25.000000]
 Five Number Summary:[min(q0)=20.000000, q1=20.000000, median(q2)=22.500000, q3=25.000000, max(q4)=25.000000]
 Interquartile Range=5.000000
-IQR Outliers:[]
+IQR Outliers with range multiplier of 1.5[]
 
 
 Input:[20.000000, 25.000000, 42.000000]
 Five Number Summary:[min(q0)=20.000000, q1=22.500000, median(q2)=25.000000, q3=33.500000, max(q4)=42.000000]
 Interquartile Range=11.000000
-IQR Outliers:[]
+IQR Outliers with range multiplier of 1.5[]
 
 
 Input:[90.000000, 87.000000, 80.000000, 65.000000]
 Five Number Summary:[min(q0)=65.000000, q1=72.500000, median(q2)=83.500000, q3=88.500000, max(q4)=90.000000]
 Interquartile Range=16.000000
-IQR Outliers:[]
+IQR Outliers with range multiplier of 1.5[]
+
+
+filter data stream with window size 6, outlier range multiplier 1.5
+-80.0 -> -80.0
+-90.0 -> -90.0
+-100.0 -> -100.0
+-110.0 -> -110.0
+-120.0 -> -120.0
+-130.0 -> -130.0
+-300.0 -> -130.0
+-100.0 -> -100.0
+-110.0 -> -110.0
+-120.0 -> -120.0
+-130.0 -> -130.0
+-200.0 -> -200.0
+-30.2 -> -100.0
+-2.0 -> -2.0
 1.0 -> 1.0
-2.0 -> 2.0
-5.0 -> 5.0
-6.0 -> 6.0
-7.0 -> 7.0
-9.0 -> 9.0
-12.0 -> 12.0
-15.0 -> 15.0
-18.0 -> 18.0
 19.0 -> 19.0
-27.0 -> 27.0
--200.0 -> 12.0
-1.0 -> 1.0
-5.0 -> 5.0
+7.0 -> 7.0
 6.0 -> 6.0
+5.0 -> 5.0
 9.0 -> 9.0
 12.0 -> 12.0
-200.0 -> 12.0
+27.0 -> 12.0
+18.0 -> 18.0
 2.0 -> 2.0
+15.0 -> 15.0
+1.0 -> 1.0
+200.0 -> 27.0
 5.0 -> 5.0
 6.0 -> 6.0
 9.0 -> 9.0
 12.0 -> 12.0
+-200.0 -> 5.0
+12.0 -> 12.0
+9.0 -> 9.0
+6.0 -> 6.0
+5.0 -> 5.0
+2.0 -> 2.0
 26.0 -> 12.0
 1.0 -> 1.0
 3.0 -> 3.0
@@ -441,8 +479,8 @@ IQR Outliers:[]
 20.0 -> 20.0
 25.0 -> 25.0
 42.0 -> 25.0
-65.0 -> 65.0
-80.0 -> 80.0
+90.0 -> 42.0
 87.0 -> 87.0
-90.0 -> 90.0
+80.0 -> 80.0
+65.0 -> 65.0
  */
