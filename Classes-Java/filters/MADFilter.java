@@ -10,8 +10,8 @@ class MADFilter
 Median Absolute Deviation (MAD) of an array of numbers
 
 Median Absolute Deviation is a robust way to identify outliers.
-It replaces standard deviation or variance with median deviation
-and the mean with the median. The result is a method that isn’t
+Conceptually it's replacing standard deviation or variance with median
+deviation and the mean with the median. The result is a method that isn’t
 as affected by outliers as using the mean and standard deviation.
 
 https://eurekastatistics.com/using-the-median-absolute-deviation-to-find-outliers
@@ -26,9 +26,8 @@ rule of thumb is |Mi| > 3.5 is an outlier (or |Mi| > 3.0)
 0.6745 is the 0.75th quartile of the standard normal distribution, to which the MAD converges
 */
 
-    private int n;
+    private int windowSize;
     private double[] y;
-    private double[] fns;
     private double mad;
     private double threshold; 
 
@@ -39,7 +38,7 @@ rule of thumb is |Mi| > 3.5 is an outlier (or |Mi| > 3.0)
      */
     public MADFilter(int WindowSize, double threshold)
     {
-        this.n = WindowSize;
+        this.windowSize = WindowSize;
         this.threshold = threshold;
         this.y = new double[WindowSize]; // y here will be the sensor data history [0] the oldest
         for (int i = 0; i < this.y.length; i++) this.y[i] = Double.NaN;
@@ -67,21 +66,22 @@ rule of thumb is |Mi| > 3.5 is an outlier (or |Mi| > 3.0)
         double yPredictedMAD = value;// assume value is good to return; change later if it's an outlier
         // shove all data down in history to make room for the current value
         // could use WPILIB circular buffer but this is easy and efficient
-        for (int k = 0; k < n-1; k++) {
+        for (int k = 0; k < windowSize-1; k++) {
             y[k] = y[k+1];
         }
-        y[n-1] = value; // stuff the current data
-        
-        var tempY = Arrays.copyOf(y, y.length); // all this quartile stuff sorts the data destroying the original sequence
+        y[windowSize-1] = value; // stuff the current data
+ 
+        if(!Double.isNaN(y[0])) // check oldest to see if it's been set yet indicating buffer now filled
+        { // buffer is filled so start using the history 
+  
+            var tempY = Arrays.copyOf(y, y.length); // IQRFilter class FNS sorts the data destroying the original sequence
 
-        fns = IQRFilter.fiveNumberSummary(tempY); // min(q0), q1, median(q2), q3, max(q4)
+            var fns = IQRFilter.fiveNumberSummary(tempY); // min(q0), q1, median(q2), q3, max(q4)
 
-        if(y[0] != Double.NaN) // check oldest to see if it's been set yet indicating buffer now filled
-        { // buffer is filled so start using the history
             var median =fns[2];
             mad = mad(tempY);
 
-            if((0.6745*(value - median)/mad) < threshold) // is the latest point a small outlier?
+            if((0.6745*(value - median)/mad) < -threshold) // is the latest point a small outlier?
                 yPredictedMAD = fns[1]; // replace with q1
             else
             if((0.6745*(value - median)/mad) > threshold) // is the latest point a large outlier?
@@ -90,36 +90,29 @@ rule of thumb is |Mi| > 3.5 is an outlier (or |Mi| > 3.0)
 
         return yPredictedMAD;
     }
-
-    /**
-     * Function for calculating the mean of an array of numbers.
-     * @param data the array of numbers
-     * @return mean
-     */
-    public double mean(double data[])
-    {
-        double sum = 0;
-        for (int i = 0; i < n; i++)
-            sum += data[i];
- 
-        return sum / (double)n;
-    }
  
     /**
      * Function for calculating the median of an array of numbers.
+     * Caution - data are returned sorted ascending
      * @param data the array of numbers
      * @return median
      */
-    public double median(double data[])
+    public static double median(double[] data)
     {
         // sort the array
         Arrays.sort(data);
  
+        int sz = data.length;
+
         // check for odd case
-        if (n % 2 != 0)
-            return data[n / 2];
+        if (sz % 2 == 0)
+        {
+            return (data[sz/2 - 1] + data[sz/2]) / 2.0;            
+        }
+        else
+            return data[sz / 2];
  
-        return (data[n/2 - 1] + data[n/2]) / 2.0;
+
     }
 
     /**
@@ -127,13 +120,13 @@ rule of thumb is |Mi| > 3.5 is an outlier (or |Mi| > 3.0)
      * @param data the array of numbers
      * @return MAD
      */
-    public double mad(final double[] data) {
-        var median =fns[2];
-        double[] deviationSum = new double[n];
-        for (int i = 0; i < n; i++) {
-            deviationSum[i] = Math.abs(median - data[i]);
+    public static double mad(final double[] data) {
+        var medianData = median(data);
+        double[] deviation = new double[data.length];
+        for (int i = 0; i < data.length; i++) {
+            deviation[i] = Math.abs(medianData - data[i]);
         }
-        mad = median(deviationSum);
+        var mad = median(deviation);
         return mad;
     }
 
@@ -141,30 +134,29 @@ rule of thumb is |Mi| > 3.5 is an outlier (or |Mi| > 3.0)
      * test example
      * @param args
      */
-    public void main(String args[])
+    public static void main(String args[])
     {
-        // double data[] = {1, 2, 3, 3, 4, 4, 4, 5, 5.5, 6, 6, 6.5, 7, 7, 7.5, 8, 9, 12, -52, 90}; // test data
-        // double mean = mean(data);
-        // double median = median(data);
-        // double mad = mad(data);
-        
-        // System.out.println("Mean = " + mean);
-        // System.out.println("Median = " + median);
-        // System.out.println("MAD = " + mad);
+        MADFilter madFilter = new MADFilter(9, 3.5);
+        double data[] = {1, 2, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5.5, 6, 6, 6.5, 7, 7, 7.5, 8, 9, 12, -52, 90}; // test data
 
-        // Arrays.stream(data)
-        //     .peek(point -> System.out.println(point))
-        //     .filter(point->outlier(point))
-        //     .forEach(point->System.out.println("  is an outlier"));
+        Arrays.stream(data)
+            .forEach
+                (point ->
+                {
+                    var checkIt = madFilter.calculate(point);
+                    System.out.println(point + (checkIt != point ? " is an outlier replaced by " + checkIt : ""));
+                }
+                );
+        
+        var median = median(data);  
+        System.out.println("\nMedian = " + median);
+    
+        var mad = mad(data);
+        System.out.println("\nMAD = " + mad);
     }
 }
 
 /* Output
-Mean = 6.925
-Median = 5.75
-MAD = 1.75   
--52.0
-  is an outlier
 1.0
 2.0
 3.0
@@ -172,10 +164,19 @@ MAD = 1.75
 4.0
 4.0
 4.0
-5.0
-5.5
-6.0
-6.0
+4.0
+4.0
+4.0
+4.0
+4.0
+4.0
+4.0
+4.0
+4.0
+5.0 is an outlier replaced by 4.0
+5.5 is an outlier replaced by 4.0
+6.0 is an outlier replaced by 5.0
+6.0 is an outlier replaced by 5.5
 6.5
 7.0
 7.0
@@ -183,6 +184,10 @@ MAD = 1.75
 8.0
 9.0
 12.0
-90.0
-  is an outlier
+-52.0 is an outlier replaced by 6.5
+90.0 is an outlier replaced by 9.0
+
+Median = 4.0
+
+MAD = 1.0
 */

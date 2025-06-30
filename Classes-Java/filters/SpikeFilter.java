@@ -65,8 +65,8 @@ class SpikeFilter {
 
     /**
      * 
-     * @param Mabsolute difference to supress
-     * @param Mratio difference to supress
+     * @param Mabsolute difference to suppress
+     * @param Mratio difference to suppress
      * @param n count periods, 0 is off; suggest 1 or maybe rarely 2
      */
     public SpikeFilter(double Mabsolute, double Mratio, int n){
