@@ -6,3 +6,5 @@ Various filters with an UltraSonic sensor or fake data from joystick and spikes 
 * Savitzky-Golay - Least squares prediction
 * Median - use of the WPILib filter (WPILib has others, too)
 * One Euro - Tunable low pass filter
+* Alpha-Beta - Tunable filter
+

@@ -48,6 +48,9 @@ public class Robot extends TimedRobot {
   double dcutoff = 1.0;
   private final OneEuroFilter oefilter = new OneEuroFilter(frequency, mincutoff, beta, dcutoff); 
 
+  // Alpha-Beta Filter
+  private final AlphaBetaFilter abfilter = new AlphaBetaFilter(0.8, 0.2, 0.02, 0., 0.); // use actual first data point would be better
+
   double yActual = 0;
 
   // spike filter
@@ -73,6 +76,9 @@ public class Robot extends TimedRobot {
   // One Euro filter
   double yPredictedOE = 0.;
 
+  // Alpha-Beta Filter
+  double yPredictedAB = 0.;
+
   // WPILog
   DoubleLogEntry rawLogEntry;
   DoubleLogEntry spikeFilterLogEntry;
@@ -82,6 +88,7 @@ public class Robot extends TimedRobot {
   DoubleLogEntry MADfilterLogEntry;
   DoubleLogEntry IQRfilterLogEntry;
   DoubleLogEntry OEfilterLogEntry;
+  DoubleLogEntry ABfilterLogEntry;
 
   public void robotInit() {
     
@@ -97,6 +104,7 @@ public class Robot extends TimedRobot {
     MADfilterLogEntry = new DoubleLogEntry(log, USname+"MADfilter", "PredictedCounts");
     IQRfilterLogEntry = new DoubleLogEntry(log, USname+"IQRfilter", "PredictedCounts");
     OEfilterLogEntry = new DoubleLogEntry(log, USname+"OEfilter", "PredictedCounts");
+    ABfilterLogEntry = new DoubleLogEntry(log, USname+"ABfilter", "PredictedCounts");
     }
 
     @Override
@@ -142,6 +150,10 @@ public class Robot extends TimedRobot {
     // One Euro filter
     SmartDashboard.putNumber("OE filter", yPredictedOE);
     OEfilterLogEntry.append(yPredictedOE);
+
+    // Alpha-Beta filter
+    SmartDashboard.putNumber("AB filter", yPredictedAB);
+    ABfilterLogEntry.append(yPredictedAB);
   }
 
   public void calculate()
@@ -183,6 +195,9 @@ public class Robot extends TimedRobot {
       yPredictedIQR = iqrfilter.calculate(yActual);
 
       // One Euro filter
-      yPredictedOE = oefilter.calculate(yActual, Timer.getFPGATimestamp());      
+      yPredictedOE = oefilter.calculate(yActual, Timer.getFPGATimestamp());
+
+      // Alpha-Beta Filter
+      yPredictedAB = abfilter.calculate(yActual);
   }
 }
